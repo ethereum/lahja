@@ -15,7 +15,6 @@ PROC2_FIRED = "proc2_fired"
 
 def run_proc1(ep):
     loop = asyncio.get_event_loop()
-    #asyncio.ensure_future(check_queue("Received in proc1", ep))
     ep.connect()
     ep.subscribe(PROC2_FIRED, lambda item: 
         print("Received in proc1: ", item.payload)
@@ -28,7 +27,11 @@ def run_proc1(ep):
 
 def run_proc2(ep):
     loop = asyncio.get_event_loop()
-    asyncio.ensure_future(check_queue("Received in proc2", ep))
+    ep.connect()
+    ep.subscribe(PROC1_FIRED, lambda item: 
+        print("Received in proc2: ", item.payload)
+    )
+
     loop.run_until_complete(proc2_worker("Hello from proc2", ep))
 
 async def proc1_worker(term, ep):
@@ -50,12 +53,6 @@ async def proc2_worker(term, ep):
                 "Hit from proc2 ({})".format(time.time())
             )
         await asyncio.sleep(1)
-
-async def check_queue(proc_label, ep):
-
-    async for item in ep.receive_others():
-        print("{}: {}".format(proc_label, item))
-
 
 
 def is_nth_second(interval):
