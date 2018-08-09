@@ -88,10 +88,10 @@ class EventBus:
         return endpoint
 
 
-    def run_forever(self):
-        asyncio.ensure_future(self.start())
+    def start(self):
+        asyncio.ensure_future(self._start())
 
-    async def start(self):
+    async def _start(self):
         while True:
             item = await self._incoming_queue.coro_get()
             for queue in self._queues:

@@ -62,7 +62,7 @@ if __name__ == "__main__":
     event_bus = EventBus()
     e1 = event_bus.create_endpoint('e1')
     e2 = event_bus.create_endpoint('e2')
-    event_bus.run_forever()
+    event_bus.start()
 
     p1 = aioprocessing.AioProcess(target=run_proc1, args=(e1,))
     p1.start()
