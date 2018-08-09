@@ -31,6 +31,7 @@ def run_proc2(ep):
     ep.subscribe(PROC1_FIRED, lambda item: 
         print("Received in proc2: ", item.payload)
     )
+    asyncio.ensure_future(display_proc1_events(ep))
 
     loop.run_until_complete(proc2_worker("Hello from proc2", ep))
 
@@ -54,6 +55,11 @@ async def proc2_worker(term, ep):
             )
         await asyncio.sleep(1)
 
+async def display_proc1_events(ep):
+    while True:
+        item = await ep.dequeue(PROC1_FIRED).get()
+        print("DEQUED: ", item.payload)
+        await asyncio.sleep(1)
 
 def is_nth_second(interval):
     return int(time.time()) % interval is 0

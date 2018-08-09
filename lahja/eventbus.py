@@ -37,6 +37,7 @@ class Endpoint:
         self.sending_queue = sending_queue
         self.receiving_queue = receiving_queue
         self._handler: Dict[str, List[Callable[[EventWrapper], Any]]] = {}
+        self._queues: Dict[str, List[asyncio.Queue]] = {}
 
     def broadcast(self, event_type:str , item: Any) -> None:
         self.sending_queue.coro_put(EventWrapper(
@@ -51,10 +52,21 @@ class Endpoint:
     async def _connect(self) -> None:
         while True:
             item = await self.receiving_queue.coro_get()
-            if item.event_type not in self._handler:
+
+            in_queue = item.event_type in self._queues
+            in_handler = item.event_type in self._handler
+
+            if not in_queue and not in_handler:
                 continue
-            for handler in self._handler[item.event_type]:
-                handler(item)
+
+            if in_queue:
+                for queue in self._queues[item.event_type]:
+                    queue.put_nowait(item)
+
+            if in_handler:
+                for handler in self._handler[item.event_type]:
+                    handler(item)
+
 
     def subscribe(self, event_type: str, handler: Callable[[EventWrapper], None]) -> Subscription:
         if event_type not in self._handler:
@@ -63,6 +75,18 @@ class Endpoint:
         self._handler[event_type].append(handler)
 
         return Subscription(lambda: self._handler[event_type].remove(handler))
+
+    def dequeue(self, event_type: str) -> asyncio.Queue:
+        queue = asyncio.Queue()
+
+        if event_type not in self._queues:
+            self._queues[event_type] = []
+
+        self._queues[event_type].append(queue)
+
+        # TODO: Queue subscription
+        return queue
+
 
     def _unwrap_event(self, event_wrapper: EventWrapper) -> Any:
         return event_wrapper.payload
