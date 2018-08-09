@@ -89,10 +89,16 @@ logs
 ## File-based project format:
 *.iws
 
+## mypycache
+.mypy_cache
+
 ## Plugin-specific files:
 
 # IntelliJ
 /out/
+
+#VScode
+.vscode
 
 # mpeltonen/sbt-idea plugin
 .idea_modules/
