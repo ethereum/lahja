@@ -165,6 +165,13 @@ Received via STREAM API in proc2:  Hit from proc1 (1533887075.9378386)
 Receiving own event:  Hit from proc1 (1533887075.9378386)
 ```
 
+## TODOs
+
+- Filter support (e.g. only subscribe to `EventX` from origin `y`)
+- Push boundaries (don't push this into process x)
+- Testing
+- Performance analysis
+
 ## Developer Setup
 
 If you would like to hack on lahja, please check out the
