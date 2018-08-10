@@ -1,6 +1,6 @@
-<MODULE_NAME>
-<PYPI_NAME>
-<REPO_NAME>
-<RTD_NAME>
+lahja
+lahja
+lahja
+lahja
 <PROJECT_NAME>
 <SHORT_DESCRIPTION>

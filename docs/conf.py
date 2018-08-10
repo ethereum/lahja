@@ -189,7 +189,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = '<MODULE_NAME>doc'
+htmlhelp_basename = 'lahjadoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -209,7 +209,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', '<MODULE_NAME>.tex', '<PROJECT_NAME> Documentation',
+  ('index', 'lahja.tex', '<PROJECT_NAME> Documentation',
    'Jason Carver', 'manual'),
 ]
 
@@ -239,7 +239,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', '<MODULE_NAME>', '<PROJECT_NAME> Documentation',
+    ('index', 'lahja', '<PROJECT_NAME> Documentation',
      ['Jason Carver'], 1)
 ]
 

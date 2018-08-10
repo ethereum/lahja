@@ -44,7 +44,7 @@ setup(
     long_description_markdown_filename='README.md',
     author='The Lahja developers',
     author_email='christoph.burgdorf@gmail.com',
-    url='https://github.com/ethereum/<REPO_NAME>',
+    url='https://github.com/ethereum/lahja',
     include_package_data=True,
     install_requires=[
         "aioprocessing",
@@ -52,7 +52,7 @@ setup(
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
     extras_require=extras_require,
-    py_modules=['<MODULE_NAME>'],
+    py_modules=['lahja'],
     license="MIT",
     zip_safe=False,
     keywords='ethereum',
