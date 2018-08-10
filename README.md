@@ -57,10 +57,10 @@ Inside each process, `connect()` the endpoint with the event bus and start recei
 def run_proc1(endpoint):
     loop = asyncio.get_event_loop()
     endpoint.connect()
-    endpoint.subscribe(PROC2_FIRED, lambda event: 
+    endpoint.subscribe(SecondThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc1: ", event.payload)
     )
-    endpoint.subscribe(PROC1_FIRED, lambda event: 
+    endpoint.subscribe(FirstThingHappened, lambda event: 
         print("Receiving own event: ", event.payload)
     )
 
@@ -71,8 +71,7 @@ async def proc1_worker(endpoint):
         print("Hello from proc1")
         if is_nth_second(5):
             endpoint.broadcast(
-                PROC1_FIRED,
-                "Hit from proc1 ({})".format(time.time())
+                FirstThingHappened("Hit from proc1 ({})".format(time.time()))
             )
         await asyncio.sleep(1)
 ```
@@ -86,12 +85,14 @@ Events can be broadcasted via the `broadcast` API. Notice that events are intern
 
 **Broadcast API**
 
-`def broadcast(self, event_type:str , item: Any) -> None`
+`def broadcast(self, item: BaseEvent) -> None:`
 
 *Example:*
 
 ```Python
-endpoint.broadcast(PROC1_FIRED, "Hit from proc1 ({})".format(time.time()))
+endpoint.broadcast(
+    FirstThingHappened("Hit from proc1 ({})".format(time.time()))
+)
 ```
 
 ### Listening to events
@@ -100,15 +101,17 @@ Events can be received in two different fashions. Both APIs are non-blocking.
 
 **Subscribe API**
 
-`subscribe(self, event_type: str, handler: Callable[[EventWrapper], None]) -> Subscription:`
+`def subscribe(self, event_type: Type[BaseEvent], handler: Callable[[BaseEvent], None]) -> Subscription:`
 
 *Example:*
 
 ```Python
-subscription = endpoint.subscribe(PROC2_FIRED, lambda event: print(event.payload))
+subscription = endpoint.subscribe(SecondThingHappened, lambda event: 
+    print("Received via SUBSCRIBE API in proc1: ", event.payload)
+)
 ```
 
-The handler will be called every time that a `PROC2_FIRED` event is fired. Notice that the returned `Subscription` allows deregistering from the event at any later point in time.
+The handler will be called every time that a `SecondThingHappened` event is fired. Notice that the returned `Subscription` allows deregistering from the event at any later point in time.
 
 *Example:*
 
@@ -118,12 +121,12 @@ subscription.unsubscribe()
 
 **Stream API**
 
-`stream(self, event_type: str) -> AsyncIterable[EventWrapper]:`
+`async def stream(self, event_type: Type[BaseEvent]) -> AsyncIterable[BaseEvent]:`
 
 *Example:*
 
 ```Python
-async for event in endpoint.stream(PROC2_FIRED):
+async for event in endpoint.stream(SecondThingHappened):
     print(event.payload)
 ```
 
