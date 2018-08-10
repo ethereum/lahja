@@ -90,7 +90,7 @@ class Endpoint:
             event = await queue.get()
             try:
                 yield event
-            finally:
+            except GeneratorExit:
                 self._queues[event_type].remove(queue)
 
 
