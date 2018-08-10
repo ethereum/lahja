@@ -1,4 +1,4 @@
-# lahja
+# Lahja
 
 **DISCLAIMER: This is a proof of concept. It's untested, has never been used anywhere in production and is probably full of bugs**
 
