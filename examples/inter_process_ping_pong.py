@@ -2,8 +2,6 @@ import asyncio
 import multiprocessing
 import time
 
-import aioprocessing
-
 from lahja.eventbus import (
     Endpoint,
     EventBus,
@@ -70,8 +68,8 @@ if __name__ == "__main__":
     e2 = event_bus.create_endpoint('e2')
     event_bus.start()
 
-    p1 = aioprocessing.AioProcess(target=run_proc1, args=(e1,))
+    p1 = multiprocessing.Process(target=run_proc1, args=(e1,))
     p1.start()
 
-    p2 = aioprocessing.AioProcess(target=run_proc2, args=(e2,))
+    p2 = multiprocessing.Process(target=run_proc2, args=(e2,))
     p2.start()
