@@ -28,7 +28,7 @@ pip install lahja
 ### Import `EventBus` and `Endpoint`.
 
 ```python
-from lahja.eventbus import (
+from lahja import (
     Endpoint,
     EventBus,
 )
