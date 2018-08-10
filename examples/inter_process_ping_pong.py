@@ -2,22 +2,21 @@ import asyncio
 import multiprocessing
 import time
 
-from lahja.eventbus import (
+from lahja import (
     Endpoint,
     EventBus,
     BaseEvent
 )
 
-PROC1_FIRED = "proc1_fired"
-PROC2_FIRED = "proc2_fired"
 
+# Define two different events
 class FirstThingHappened(BaseEvent):
     pass
 
 class SecondThingHappened(BaseEvent):
     pass
 
-
+# Base functions for first process
 def run_proc1(endpoint):
     loop = asyncio.get_event_loop()
     endpoint.connect()
@@ -39,7 +38,7 @@ async def proc1_worker(endpoint):
             )
         await asyncio.sleep(1)
 
-
+# Base functions for second process
 def run_proc2(endpoint):
     loop = asyncio.get_event_loop()
     endpoint.connect()
@@ -64,15 +63,19 @@ async def display_proc1_events(endpoint):
     async for event in endpoint.stream(FirstThingHappened):
         print("Received via STREAM API in proc2: ", event.payload)
 
+
+# Helper function to send events every n seconds
 def is_nth_second(interval):
     return int(time.time()) % interval is 0
 
 if __name__ == "__main__":
+    # Configure and start event bus
     event_bus = EventBus()
     e1 = event_bus.create_endpoint('e1')
     e2 = event_bus.create_endpoint('e2')
     event_bus.start()
 
+    # Start two processes and pass in event bus endpoints
     p1 = multiprocessing.Process(target=run_proc1, args=(e1,))
     p1.start()
 
