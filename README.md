@@ -80,7 +80,7 @@ async def proc1_worker(endpoint):
 ## API
 
 
-# Broadcasting events
+### Broadcasting events
 
 Events can be broadcasted via the `broadcast` API. Notice that events are internally handled via `asyncio`, which means, this is a non-blocking fire and forget API.
 
@@ -94,7 +94,7 @@ Events can be broadcasted via the `broadcast` API. Notice that events are intern
 endpoint.broadcast(PROC1_FIRED, "Hit from proc1 ({})".format(time.time()))
 ```
 
-# Listening to events
+### Listening to events
 
 Events can be received in two different fashions. Both APIs are non-blocking.
 
@@ -118,7 +118,7 @@ subscription.unsubscribe()
 
 **Stream API**
 
-`subscribe(self, event_type: str) -> AsyncGenerator:`
+`stream(self, event_type: str) -> AsyncIterable[EventWrapper]:`
 
 *Example:*
 
