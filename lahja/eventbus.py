@@ -3,6 +3,7 @@ import aioprocessing
 
 from typing import (
     Any,
+    AsyncIterable,
     Callable,
     Dict,
     List,
@@ -76,16 +77,21 @@ class Endpoint:
 
         return Subscription(lambda: self._handler[event_type].remove(handler))
 
-    def dequeue(self, event_type: str) -> asyncio.Queue:
-        queue = asyncio.Queue()
+
+    async def stream(self, event_type: str) -> AsyncIterable[EventWrapper]:
+        queue: asyncio.Queue = asyncio.Queue()
 
         if event_type not in self._queues:
             self._queues[event_type] = []
 
         self._queues[event_type].append(queue)
 
-        # TODO: Queue subscription
-        return queue
+        while True:
+            event = await queue.get()
+            try:
+                yield event
+            finally:
+                self._queues[event_type].remove(queue)
 
 
     def _unwrap_event(self, event_wrapper: EventWrapper) -> Any:

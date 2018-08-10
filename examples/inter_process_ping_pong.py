@@ -56,10 +56,8 @@ async def proc2_worker(endpoint):
         await asyncio.sleep(1)
 
 async def display_proc1_events(endpoint):
-    while True:
-        event = await endpoint.dequeue(PROC1_FIRED).get()
+    async for event in endpoint.stream(PROC1_FIRED):
         print("Received via STREAM API in proc2: ", event.payload)
-        await asyncio.sleep(1)
 
 def is_nth_second(interval):
     return int(time.time()) % interval is 0
