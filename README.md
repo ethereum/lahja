@@ -19,15 +19,13 @@ Key facts:
 
 ## Quickstart
 
-Install the library
+### Install the library
 
 ```sh
 pip install lahja
 ```
 
-Setup
-
-Import `EventBus` and `Endpoint`.
+### Import `EventBus` and `Endpoint`.
 
 ```python
 from lahja.eventbus import (
@@ -36,7 +34,7 @@ from lahja.eventbus import (
 )
 ```
 
-Setup `EventBus` with `Endpoint`s and pass the `Endpoint`s into the different processes.
+### Setup `EventBus` with `Endpoint`s and pass the `Endpoint`s into the different processes.
 
 ```python
 event_bus = EventBus()
@@ -51,7 +49,7 @@ p2 = multiprocessing.Process(target=run_proc2, args=(e2,))
 p2.start()
 ```
 
-Inside each process, `connect()` the endpoint with the event bus and start receiving and broadcasting events.
+### Inside each process, `connect()` the endpoint with the event bus and start receiving and broadcasting events.
 
 ```Python
 def run_proc1(endpoint):
