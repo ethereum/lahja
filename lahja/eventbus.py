@@ -94,11 +94,6 @@ class Endpoint:
                 self._queues[event_type].remove(queue)
 
 
-    def _unwrap_event(self, event_wrapper: EventWrapper) -> Any:
-        return event_wrapper.payload
-
-
-
 class EventBus:
 
     def __init__(self) -> None:
