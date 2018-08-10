@@ -11,52 +11,54 @@ PROC1_FIRED = "proc1_fired"
 PROC2_FIRED = "proc2_fired"
 
 
-def run_proc1(ep):
+def run_proc1(endpoint):
     loop = asyncio.get_event_loop()
-    ep.connect()
-    ep.subscribe(PROC2_FIRED, lambda item: 
-        print("Received in proc1: ", item.payload)
+    endpoint.connect()
+    endpoint.subscribe(PROC2_FIRED, lambda event: 
+        print("Received via SUBSCRIBE API in proc1: ", event.payload)
     )
-    ep.subscribe(PROC1_FIRED, lambda item: 
-        print("Receiving own event: ", item.payload)
+    endpoint.subscribe(PROC1_FIRED, lambda event: 
+        print("Receiving own event: ", event.payload)
     )
 
-    loop.run_until_complete(proc1_worker("Hello from proc1", ep))
+    loop.run_until_complete(proc1_worker(endpoint))
 
-def run_proc2(ep):
-    loop = asyncio.get_event_loop()
-    ep.connect()
-    ep.subscribe(PROC1_FIRED, lambda item: 
-        print("Received in proc2: ", item.payload)
-    )
-    asyncio.ensure_future(display_proc1_events(ep))
-
-    loop.run_until_complete(proc2_worker("Hello from proc2", ep))
-
-async def proc1_worker(term, ep):
+async def proc1_worker(endpoint):
     while True:
-        print(term)
+        print("Hello from proc1")
         if is_nth_second(5):
-            ep.broadcast(
+            endpoint.broadcast(
                 PROC1_FIRED,
                 "Hit from proc1 ({})".format(time.time())
             )
         await asyncio.sleep(1)
 
-async def proc2_worker(term, ep):
+
+def run_proc2(endpoint):
+    loop = asyncio.get_event_loop()
+    endpoint.connect()
+    endpoint.subscribe(PROC1_FIRED, lambda event: 
+        print("Received via SUBSCRIBE API in proc2:", event.payload)
+    )
+    asyncio.ensure_future(display_proc1_events(endpoint))
+
+    loop.run_until_complete(proc2_worker(endpoint))
+
+
+async def proc2_worker(endpoint):
     while True:
-        print(term)
+        print("Hello from proc2")
         if is_nth_second(2):
-            ep.broadcast(
+            endpoint.broadcast(
                 PROC2_FIRED,
                 "Hit from proc2 ({})".format(time.time())
             )
         await asyncio.sleep(1)
 
-async def display_proc1_events(ep):
+async def display_proc1_events(endpoint):
     while True:
-        item = await ep.dequeue(PROC1_FIRED).get()
-        print("DEQUED: ", item.payload)
+        event = await endpoint.dequeue(PROC1_FIRED).get()
+        print("Received via STREAM API in proc2: ", event.payload)
         await asyncio.sleep(1)
 
 def is_nth_second(interval):
