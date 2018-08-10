@@ -7,6 +7,8 @@ from typing import (
     Callable,
     Dict,
     List,
+    Type,
+    TypeVar,
 )
 
 class Subscription:
@@ -18,14 +20,11 @@ class Subscription:
         self._unsubscribe_fn()
 
 
-class EventWrapper:
+class BaseEvent:
 
-    # TODO: stringly typed events suck
-    def __init__(self, origin: str, event_type: str, payload: Any) -> None:
-        self.origin = origin
-        self.event_type = event_type
+    def __init__(self, payload: Any) -> None:
+        self._origin = ''
         self.payload = payload
-
 
 class Endpoint:
 
@@ -37,15 +36,12 @@ class Endpoint:
         self.name = name
         self.sending_queue = sending_queue
         self.receiving_queue = receiving_queue
-        self._handler: Dict[str, List[Callable[[EventWrapper], Any]]] = {}
-        self._queues: Dict[str, List[asyncio.Queue]] = {}
+        self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
+        self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
 
-    def broadcast(self, event_type:str , item: Any) -> None:
-        self.sending_queue.coro_put(EventWrapper(
-            self.name,
-            event_type,
-            item,
-        ))
+    def broadcast(self, item: BaseEvent) -> None:
+        item.origin = self.name
+        self.sending_queue.coro_put(item)
 
     def connect(self) -> None:
         asyncio.ensure_future(self._connect())
@@ -54,22 +50,23 @@ class Endpoint:
         while True:
             item = await self.receiving_queue.coro_get()
 
-            in_queue = item.event_type in self._queues
-            in_handler = item.event_type in self._handler
+            event_type = type(item)
+            in_queue = event_type in self._queues
+            in_handler = event_type in self._handler
 
             if not in_queue and not in_handler:
                 continue
 
             if in_queue:
-                for queue in self._queues[item.event_type]:
+                for queue in self._queues[event_type]:
                     queue.put_nowait(item)
 
             if in_handler:
-                for handler in self._handler[item.event_type]:
+                for handler in self._handler[event_type]:
                     handler(item)
 
 
-    def subscribe(self, event_type: str, handler: Callable[[EventWrapper], None]) -> Subscription:
+    def subscribe(self, event_type: Type[BaseEvent], handler: Callable[[BaseEvent], None]) -> Subscription:
         if event_type not in self._handler:
             self._handler[event_type] = []
 
@@ -78,7 +75,7 @@ class Endpoint:
         return Subscription(lambda: self._handler[event_type].remove(handler))
 
 
-    async def stream(self, event_type: str) -> AsyncIterable[EventWrapper]:
+    async def stream(self, event_type: Type[BaseEvent]) -> AsyncIterable[BaseEvent]:
         queue: asyncio.Queue = asyncio.Queue()
 
         if event_type not in self._queues:

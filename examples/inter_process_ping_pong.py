@@ -5,19 +5,26 @@ import time
 from lahja.eventbus import (
     Endpoint,
     EventBus,
+    BaseEvent
 )
 
 PROC1_FIRED = "proc1_fired"
 PROC2_FIRED = "proc2_fired"
 
+class FirstThingHappened(BaseEvent):
+    pass
+
+class SecondThingHappened(BaseEvent):
+    pass
+
 
 def run_proc1(endpoint):
     loop = asyncio.get_event_loop()
     endpoint.connect()
-    endpoint.subscribe(PROC2_FIRED, lambda event: 
+    endpoint.subscribe(SecondThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc1: ", event.payload)
     )
-    endpoint.subscribe(PROC1_FIRED, lambda event: 
+    endpoint.subscribe(FirstThingHappened, lambda event: 
         print("Receiving own event: ", event.payload)
     )
 
@@ -28,8 +35,7 @@ async def proc1_worker(endpoint):
         print("Hello from proc1")
         if is_nth_second(5):
             endpoint.broadcast(
-                PROC1_FIRED,
-                "Hit from proc1 ({})".format(time.time())
+                FirstThingHappened("Hit from proc1 ({})".format(time.time()))
             )
         await asyncio.sleep(1)
 
@@ -37,7 +43,7 @@ async def proc1_worker(endpoint):
 def run_proc2(endpoint):
     loop = asyncio.get_event_loop()
     endpoint.connect()
-    endpoint.subscribe(PROC1_FIRED, lambda event: 
+    endpoint.subscribe(FirstThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc2:", event.payload)
     )
     asyncio.ensure_future(display_proc1_events(endpoint))
@@ -50,13 +56,12 @@ async def proc2_worker(endpoint):
         print("Hello from proc2")
         if is_nth_second(2):
             endpoint.broadcast(
-                PROC2_FIRED,
-                "Hit from proc2 ({})".format(time.time())
+                SecondThingHappened("Hit from proc2 ({})".format(time.time()))
             )
         await asyncio.sleep(1)
 
 async def display_proc1_events(endpoint):
-    async for event in endpoint.stream(PROC1_FIRED):
+    async for event in endpoint.stream(FirstThingHappened):
         print("Received via STREAM API in proc2: ", event.payload)
 
 def is_nth_second(interval):
