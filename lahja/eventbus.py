@@ -41,7 +41,7 @@ class Endpoint:
 
     def broadcast(self, item: BaseEvent) -> None:
         item.origin = self.name
-        self.sending_queue.coro_put(item)
+        self.sending_queue.put_nowait(item)
 
     def connect(self) -> None:
         asyncio.ensure_future(self._connect())
