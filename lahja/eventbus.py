@@ -97,6 +97,7 @@ class EventBus:
         self._queues: List[aioprocessing.AioQueue] = []
         self._endpoints: Dict[str, Endpoint] = {}
         self._incoming_queue = aioprocessing.AioQueue()
+        self._running = False
 
     def create_endpoint(self, name: str) -> Endpoint:
         if name in self._endpoints:
@@ -113,8 +114,12 @@ class EventBus:
         asyncio.ensure_future(self._start())
 
     async def _start(self) -> None:
-        while True:
+        self._running = True
+        while self._running:
             item = await self._incoming_queue.coro_get()
             for queue in self._queues:
                 queue.coro_put(item)
 
+    def stop(self):
+        self._running = False
+        self._incoming_queue.close()
