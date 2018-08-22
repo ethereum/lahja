@@ -93,6 +93,30 @@ endpoint.broadcast(
 )
 ```
 
+#### Limiting the scope of broadcasts
+
+By default, broadcasted events are send into each and every endpoint. Since endpoints are usually living in different processes, broadcasting events comes with a performance cost. Often, it can be beneficial to reduce the scope of where events are broadcasted to.
+
+*Example: Broadcasting into a specific endpoint*
+
+```Python
+endpoint.broadcast(
+    FirstThingHappened("Hit from proc1 ({})".format(time.time())),
+    BroadcastConfig(filter_endpoint="some_endpoint)
+)
+```
+
+For scenarios where we only want to *answer* a specific request, a `BroadcastConfig` can be retrieved from an incoming event to send the response only to that specific call site that sent the request.
+
+*Example: Broadcasting into a specific endpoint*
+
+```Python
+endpoint.subscribe(GetSomethingRequest, lambda event:
+        # Send a response back to *only* who made that request
+        endpoint.broadcast(DeliverSomethingResponse("Yay"), event.broadcast_config())
+    )
+```
+
 ### Listening to events
 
 Events can be received in three different fashions. All APIs are non-blocking.
