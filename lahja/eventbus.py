@@ -1,20 +1,18 @@
 import asyncio
-import uuid
-
-import aioprocessing
-
-from typing import (
+from typing import (  # noqa: F401
     Any,
     AsyncIterable,
-    Awaitable,
     Callable,
-    cast,
     Dict,
     List,
     Optional,
     Type,
-    TypeVar,
+    cast,
 )
+import uuid
+
+import aioprocessing
+
 
 class Subscription:
 
@@ -48,6 +46,7 @@ class BaseEvent:
             filter_endpoint=self._origin,
             filter_event_id=self._id
         )
+
 
 class Endpoint:
 
@@ -111,15 +110,16 @@ class Endpoint:
                 for handler in self._handler[event_type]:
                     handler(item)
 
+    def subscribe(self,
+                  event_type: Type[BaseEvent],
+                  handler: Callable[[BaseEvent], None]) -> Subscription:
 
-    def subscribe(self, event_type: Type[BaseEvent], handler: Callable[[BaseEvent], None]) -> Subscription:
         if event_type not in self._handler:
             self._handler[event_type] = []
 
         self._handler[event_type].append(handler)
 
         return Subscription(lambda: self._handler[event_type].remove(handler))
-
 
     async def stream(self, event_type: Type[BaseEvent]) -> AsyncIterable[BaseEvent]:
         queue: asyncio.Queue = asyncio.Queue()
@@ -154,7 +154,6 @@ class EventBus:
         endpoint = Endpoint(name, self._incoming_queue, receiving_queue)
         self._endpoints[name] = endpoint
         return endpoint
-
 
     def start(self) -> None:
         asyncio.ensure_future(self._start())
