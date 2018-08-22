@@ -56,6 +56,11 @@ release: clean
 	twine upload dist/*
 	git config commit.gpgSign "$(CURRENT_SIGN_SETTING)"
 
+publish: clean
+	git push me master && git push me --tags
+	python setup.py sdist bdist_wheel
+	twine upload dist/*
+
 dist: clean
 	python setup.py sdist bdist_wheel
 	ls -l dist
