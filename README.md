@@ -95,7 +95,7 @@ endpoint.broadcast(
 
 ### Listening to events
 
-Events can be received in two different fashions. Both APIs are non-blocking.
+Events can be received in three different fashions. All APIs are non-blocking.
 
 **Subscribe API**
 
@@ -128,7 +128,23 @@ async for event in endpoint.stream(SecondThingHappened):
     print(event.payload)
 ```
 
-## Running the full example
+**Request API**
+
+This API is combining the concepts of broadcasting an event and waiting for someone to respond on it. Notice that the response will be a routed event only delivered to the
+callsite making the request.
+
+`async def request(self, item: BaseEvent) -> BaseEvent:`
+
+*Example:*
+
+```Python
+result = await endpoint.request(RequestSomething()):
+print(result.payload)
+```
+
+## Running the full examples
+
+**Example 1**
 
 ```Python
 python3 examples/inter_process_ping_pong.py
@@ -164,6 +180,21 @@ Received via SUBSCRIBE API in proc2: Hit from proc1 (1533887075.9378386)
 Received via STREAM API in proc2:  Hit from proc1 (1533887075.9378386)
 Receiving own event:  Hit from proc1 (1533887075.9378386)
 ```
+
+**Example 2**
+
+```Python
+python3 examples/request_api.py
+```
+
+The output will look like this:
+
+```sh
+Yay
+Yay
+Yay
+```
+
 
 ## TODOs
 
