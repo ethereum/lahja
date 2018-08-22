@@ -166,6 +166,6 @@ class EventBus:
             for queue in self._queues:
                 queue.coro_put(item)
 
-    def stop(self):
+    def stop(self) -> None:
         self._running = False
         self._incoming_queue.close()
