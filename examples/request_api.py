@@ -42,14 +42,18 @@ async def proc2_worker(endpoint):
 
 if __name__ == "__main__":
     # Configure and start event bus
-    event_bus = EventBus()
+
+    ctx = multiprocessing.get_context('spawn')
+    event_bus = EventBus(ctx)
+
     e1 = event_bus.create_endpoint('e1')
     e2 = event_bus.create_endpoint('e2')
     event_bus.start()
 
     # Start two processes and pass in event bus endpoints
-    p1 = multiprocessing.Process(target=run_proc1, args=(e1,))
+    p1 = ctx.Process(target=run_proc1, args=(e1,))
     p1.start()
 
-    p2 = multiprocessing.Process(target=run_proc2, args=(e2,))
+    p2 = ctx.Process(target=run_proc2, args=(e2,))
     p2.start()
+    asyncio.get_event_loop().run_forever()

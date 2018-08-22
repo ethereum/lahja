@@ -1,4 +1,5 @@
 import asyncio
+import multiprocessing
 from typing import (  # noqa: F401
     Any,
     AsyncIterable,
@@ -11,8 +12,9 @@ from typing import (  # noqa: F401
 )
 import uuid
 
-import aioprocessing
-
+from .async_util import (
+    async_get,
+)
 from .misc import (
     BaseEvent,
     BroadcastConfig,
@@ -24,8 +26,8 @@ class Endpoint:
 
     def __init__(self,
                  name: str,
-                 sending_queue: aioprocessing.AioQueue,
-                 receiving_queue: aioprocessing.AioQueue) -> None:
+                 sending_queue: multiprocessing.Queue,
+                 receiving_queue: multiprocessing.Queue) -> None:
 
         self.name = name
         self._sending_queue = sending_queue
@@ -56,7 +58,7 @@ class Endpoint:
 
     async def _connect(self) -> None:
         while True:
-            (item, config) = await self._receiving_queue.coro_get()
+            (item, config) = await async_get(self._receiving_queue)
             has_config = config is not None
 
             event_type = type(item)
