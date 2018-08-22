@@ -28,16 +28,15 @@ class Endpoint:
                  receiving_queue: aioprocessing.AioQueue) -> None:
 
         self.name = name
-        self.sending_queue = sending_queue
-        self.receiving_queue = receiving_queue
+        self._sending_queue = sending_queue
+        self._receiving_queue = receiving_queue
         self._futures: Dict[str, asyncio.Future] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
 
     def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         item._origin = self.name
-        item._config = config
-        self.sending_queue.put_nowait(item)
+        self._sending_queue.put_nowait((item, config))
 
     async def request(self, item: BaseEvent) -> BaseEvent:
         item._origin = self.name
@@ -46,7 +45,7 @@ class Endpoint:
         future: asyncio.Future = asyncio.Future()
         self._futures[item._id] = future
 
-        self.sending_queue.put_nowait(item)
+        self._sending_queue.put_nowait((item, None))
 
         result = await future
 
@@ -57,11 +56,11 @@ class Endpoint:
 
     async def _connect(self) -> None:
         while True:
-            item = await self.receiving_queue.coro_get()
-            has_config = item._config is not None
+            (item, config) = await self._receiving_queue.coro_get()
+            has_config = config is not None
 
             event_type = type(item)
-            in_futures = has_config and item._config.filter_event_id in self._futures
+            in_futures = has_config and config.filter_event_id in self._futures
             in_queue = event_type in self._queues
             in_handler = event_type in self._handler
 
@@ -69,10 +68,9 @@ class Endpoint:
                 continue
 
             if in_futures:
-                event_id = item._config.filter_event_id
-                future = self._futures[event_id]
+                future = self._futures[config.filter_event_id]
                 future.set_result(item)
-                self._futures.pop(event_id)
+                self._futures.pop(config.filter_event_id)
 
             if in_queue:
                 for queue in self._queues[event_type]:

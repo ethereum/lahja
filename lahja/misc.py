@@ -23,6 +23,9 @@ class BroadcastConfig:
         self.filter_endpoint = filter_endpoint
         self.filter_event_id = filter_event_id
 
+    def allowed_to_receive(self, endpoint: str) -> bool:
+        return self.filter_endpoint is None or self.filter_endpoint == endpoint
+
 
 class BaseEvent:
 

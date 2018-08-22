@@ -9,6 +9,9 @@ import aioprocessing
 from .endpoint import (
     Endpoint,
 )
+from .misc import (
+    BroadcastConfig,
+)
 
 
 class EventBus:
@@ -24,7 +27,7 @@ class EventBus:
             raise ValueError("An endpoint with that name does already exist")
 
         receiving_queue = aioprocessing.AioQueue()
-        self._queues.append(receiving_queue)
+
         endpoint = Endpoint(name, self._incoming_queue, receiving_queue)
         self._endpoints[name] = endpoint
         return endpoint
@@ -35,9 +38,16 @@ class EventBus:
     async def _start(self) -> None:
         self._running = True
         while self._running:
-            item = await self._incoming_queue.coro_get()
-            for queue in self._queues:
-                queue.coro_put(item)
+            (item, config) = await self._incoming_queue.coro_get()
+            for endpoint in self._endpoints.values():
+
+                if not self._is_allowed_to_receive(config, endpoint.name):
+                    continue
+
+                endpoint._receiving_queue.put_nowait((item, config))
+
+    def _is_allowed_to_receive(self, config: BroadcastConfig, endpoint: str) -> bool:
+        return config is None or config.allowed_to_receive(endpoint)
 
     def stop(self) -> None:
         self._running = False
