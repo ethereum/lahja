@@ -9,13 +9,14 @@ from lahja import (
     BroadcastConfig,
 )
 
-
 # Define request / response pair
 class GetSomethingRequest(BaseEvent):
     pass
 
 class DeliverSomethingResponse(BaseEvent):
-    pass
+    def __init__(self, payload):
+        super().__init__()
+        self.payload = payload
 
 # Base functions for first process
 def run_proc1(endpoint):
@@ -37,7 +38,7 @@ def run_proc2(endpoint):
 
 async def proc2_worker(endpoint):
     for i in range(3):
-        result = await endpoint.request(GetSomethingRequest(None))
+        result = await endpoint.request(GetSomethingRequest())
         print(result.payload)
 
 if __name__ == "__main__":

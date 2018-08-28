@@ -9,11 +9,17 @@ from lahja import (
 )
 
 
+class BaseExampleEvent(BaseEvent):
+
+    def __init__(self, payload):
+        super().__init__()
+        self.payload = payload
+
 # Define two different events
-class FirstThingHappened(BaseEvent):
+class FirstThingHappened(BaseExampleEvent):
     pass
 
-class SecondThingHappened(BaseEvent):
+class SecondThingHappened(BaseExampleEvent):
     pass
 
 # Base functions for first process
