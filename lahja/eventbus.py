@@ -24,7 +24,7 @@ from .misc import (
 
 class EventBus:
 
-    def __init__(self, ctx: ModuleType) -> None:
+    def __init__(self, ctx: ModuleType = multiprocessing) -> None:
         self.ctx = ctx
         self._queues: List[multiprocessing.Queue] = []
         self._endpoints: Dict[str, Endpoint] = {}
