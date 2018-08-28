@@ -46,9 +46,7 @@ setup(
     author_email='christoph.burgdorf@gmail.com',
     url='https://github.com/ethereum/lahja',
     include_package_data=True,
-    install_requires=[
-        "aioprocessing",
-    ],
+    install_requires=[],
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
     extras_require=extras_require,
