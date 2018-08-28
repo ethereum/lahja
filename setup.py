@@ -39,7 +39,7 @@ extras_require['dev'] = (
 setup(
     name='lahja',
     # *IMPORTANT*: Don't manually change the version here. Use `make bump`, as described in readme
-    version='0.4.0',
+    version='0.4.1',
     description="Generic event bus for inter process asyncio communication",
     long_description_markdown_filename='README.md',
     author='The Lahja developers',
