@@ -8,6 +8,7 @@ from setuptools import (
 extras_require = {
     'test': [
         "pytest==3.3.2",
+        "pytest-asyncio==0.8.0",
         "pytest-xdist",
         "tox>=2.9.1,<3",
     ],
