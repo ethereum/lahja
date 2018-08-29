@@ -1,14 +1,14 @@
-import asyncio
 import pytest
 
 from lahja import (
     BaseEvent,
-    Endpoint,
     EventBus,
 )
 
+
 class DummyRequest(BaseEvent):
     pass
+
 
 class DummyResponse(BaseEvent):
     pass
