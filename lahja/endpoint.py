@@ -53,8 +53,11 @@ class Endpoint:
 
         return cast(BaseEvent, result)
 
-    def connect(self) -> None:
-        asyncio.ensure_future(self._connect())
+    def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+        if loop is not None:
+            asyncio.ensure_future(self._connect(), loop=loop)
+        else:
+            asyncio.ensure_future(self._connect())
 
     async def _connect(self) -> None:
         while True:

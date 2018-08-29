@@ -9,6 +9,7 @@ from types import (
 from typing import (  # noqa: F401
     Dict,
     List,
+    Optional,
 )
 
 from .async_util import (
@@ -41,8 +42,11 @@ class EventBus:
         self._endpoints[name] = endpoint
         return endpoint
 
-    def start(self) -> None:
-        asyncio.ensure_future(self._start())
+    def start(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+        if loop is not None:
+            asyncio.ensure_future(self._start(), loop=loop)
+        else:
+            asyncio.ensure_future(self._start())
 
     async def _start(self) -> None:
         self._running = True
