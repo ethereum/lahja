@@ -1,4 +1,7 @@
 import asyncio
+from concurrent.futures.thread import (
+    ThreadPoolExecutor
+)
 import multiprocessing
 from typing import (  # noqa: F401
     Any,
@@ -37,6 +40,7 @@ class Endpoint:
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
         self._running = False
+        self.executor = None
 
     def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         item._origin = self.name
@@ -63,8 +67,9 @@ class Endpoint:
 
     async def _connect(self) -> None:
         self._running = True
+        self._executor = ThreadPoolExecutor()
         while self._running:
-            (item, config) = await async_get(self._receiving_queue)
+            (item, config) = await async_get(self._receiving_queue, executor=self.executor)
 
             if item is TRANSPARENT_EVENT:
                 continue
@@ -122,3 +127,5 @@ class Endpoint:
         self._running = False
         self._receiving_queue.put_nowait(TRANSPARENT_EVENT)
         self._receiving_queue.close()
+        if self._executor is not None:
+            self._executor.shutdown()

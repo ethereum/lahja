@@ -6,6 +6,9 @@ from multiprocessing.queues import (
 from types import (
     ModuleType,
 )
+from concurrent.futures.thread import (
+    ThreadPoolExecutor
+)
 from typing import (  # noqa: F401
     Dict,
     List,
@@ -32,6 +35,7 @@ class EventBus:
         self._endpoints: Dict[str, Endpoint] = {}
         self._incoming_queue: Queue = Queue(0, ctx=self.ctx)
         self._running = False
+        self._executor = ThreadPoolExecutor()
 
     def create_endpoint(self, name: str) -> Endpoint:
         if name in self._endpoints:
@@ -52,7 +56,7 @@ class EventBus:
     async def _start(self) -> None:
         self._running = True
         while self._running:
-            (item, config) = await async_get(self._incoming_queue)
+            (item, config) = await async_get(self._incoming_queue, executor=self.executor)
 
             if item is TRANSPARENT_EVENT:
                 continue
@@ -71,3 +75,4 @@ class EventBus:
         self._running = False
         self._incoming_queue.put_nowait(TRANSPARENT_EVENT)
         self._incoming_queue.close()
+        self._executor.shutdown()
