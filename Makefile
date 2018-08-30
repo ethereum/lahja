@@ -57,7 +57,7 @@ release: clean
 	git config commit.gpgSign "$(CURRENT_SIGN_SETTING)"
 
 publish: clean
-	git push me master && git push me --tags
+	git push upstream master && git push upstream --tags
 	python setup.py sdist bdist_wheel
 	twine upload dist/*
 
