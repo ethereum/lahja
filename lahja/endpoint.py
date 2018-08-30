@@ -40,7 +40,7 @@ class Endpoint:
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
         self._running = False
-        self.executor = None
+        self._executor = None
 
     def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         item._origin = self.name
@@ -69,7 +69,7 @@ class Endpoint:
         self._running = True
         self._executor = ThreadPoolExecutor()
         while self._running:
-            (item, config) = await async_get(self._receiving_queue, executor=self.executor)
+            (item, config) = await async_get(self._receiving_queue, executor=self._executor)
 
             if item is TRANSPARENT_EVENT:
                 continue

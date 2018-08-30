@@ -56,7 +56,7 @@ class EventBus:
     async def _start(self) -> None:
         self._running = True
         while self._running:
-            (item, config) = await async_get(self._incoming_queue, executor=self.executor)
+            (item, config) = await async_get(self._incoming_queue, executor=self._executor)
 
             if item is TRANSPARENT_EVENT:
                 continue
