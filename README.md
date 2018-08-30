@@ -1,8 +1,8 @@
 # Lahja
 
-**DISCLAIMER: This is a proof of concept. It's untested, has never been used anywhere in production and is probably full of bugs**
+**DISCLAIMER: This is alpha state software. Expect bugs.**
 
-*Lahja is a generic event bus implementation written in Python 3.6+ to enable lightweight inter-process communication, based on non-blocking asyncio.*
+*Lahja is a generic multi process event bus implementation written in Python 3.6+ to enable lightweight inter-process communication, based on non-blocking asyncio.*
 
 ## What is this for?
 
@@ -14,6 +14,7 @@ Key facts:
 - non-blocking APIs based on asyncio
 - lightweight and simple (e.g no IPC pipes etc)
 - easy multicasting of events (one event, many independent receivers)
+- easy event routing (e.g route event X only to process group Y)
 - multiple consuming APIs to adapt to different use cases and styles
 
 
