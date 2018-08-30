@@ -19,6 +19,7 @@ from .endpoint import (
     Endpoint,
 )
 from .misc import (
+    TRANSPARENT_EVENT,
     BroadcastConfig,
 )
 
@@ -52,6 +53,10 @@ class EventBus:
         self._running = True
         while self._running:
             (item, config) = await async_get(self._incoming_queue)
+
+            if item is TRANSPARENT_EVENT:
+                continue
+
             for endpoint in self._endpoints.values():
 
                 if not self._is_allowed_to_receive(config, endpoint.name):
@@ -64,4 +69,5 @@ class EventBus:
 
     def stop(self) -> None:
         self._running = False
+        self._incoming_queue.put_nowait(TRANSPARENT_EVENT)
         self._incoming_queue.close()

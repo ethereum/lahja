@@ -39,3 +39,15 @@ class BaseEvent:
             filter_endpoint=self._origin,
             filter_event_id=self._id
         )
+
+
+class TransparentEvent(BaseEvent):
+    """
+    This event is used to create artificial activity so that code that
+    blocks on a :meth:`~multiprocessing.queues.Queue.get` unblocks and
+    gets a chance to revalidate if it should continue to block for reading.
+    """
+    pass
+
+
+TRANSPARENT_EVENT = TransparentEvent()

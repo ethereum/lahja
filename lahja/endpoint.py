@@ -16,6 +16,7 @@ from .async_util import (
     async_get,
 )
 from .misc import (
+    TRANSPARENT_EVENT,
     BaseEvent,
     BroadcastConfig,
     Subscription,
@@ -35,6 +36,7 @@ class Endpoint:
         self._futures: Dict[str, asyncio.Future] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
+        self._running = False
 
     def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         item._origin = self.name
@@ -60,8 +62,13 @@ class Endpoint:
             asyncio.ensure_future(self._connect())
 
     async def _connect(self) -> None:
-        while True:
+        self._running = True
+        while self._running:
             (item, config) = await async_get(self._receiving_queue)
+
+            if item is TRANSPARENT_EVENT:
+                continue
+
             has_config = config is not None
 
             event_type = type(item)
@@ -110,3 +117,8 @@ class Endpoint:
                 yield event
             except GeneratorExit:
                 self._queues[event_type].remove(queue)
+
+    def stop(self) -> None:
+        self._running = False
+        self._receiving_queue.put_nowait(TRANSPARENT_EVENT)
+        self._receiving_queue.close()

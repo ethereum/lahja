@@ -28,3 +28,5 @@ async def test_foo():
 
     response = await endpoint.request(DummyRequest())
     assert isinstance(response, DummyResponse)
+    endpoint.stop()
+    bus.stop()
