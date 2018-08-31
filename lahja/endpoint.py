@@ -137,6 +137,11 @@ class Endpoint:
                 if i is not None and i >= cast(int, max):
                     break
 
+    async def wait_for(self, event_type: Type[BaseEvent]) -> BaseEvent:  # type: ignore
+        # mypy thinks we are missing a return statement but this seems fair to do
+        async for event in self.stream(event_type, max=1):
+            return event
+
     def stop(self) -> None:
         self._running = False
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))

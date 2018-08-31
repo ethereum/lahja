@@ -55,3 +55,22 @@ async def test_stream_with_max():
     assert stream_counter == 2
 
 
+@pytest.mark.asyncio
+async def test_wait_for():
+    bus = EventBus()
+    endpoint = bus.create_endpoint('test')
+    bus.start()
+    endpoint.connect()
+    received = None
+    async def stream_response():
+        request = await endpoint.wait_for(DummyRequest)
+        nonlocal received
+        received = request
+
+    asyncio.ensure_future(stream_response())
+    endpoint.broadcast(DummyRequest())
+
+    await asyncio.sleep(0.01)
+    bus.shutdown()
+    assert isinstance(received, DummyRequest)
+
