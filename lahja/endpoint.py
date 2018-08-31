@@ -114,7 +114,9 @@ class Endpoint:
 
         return Subscription(lambda: self._handler[event_type].remove(handler))
 
-    async def stream(self, event_type: Type[BaseEvent]) -> AsyncIterable[BaseEvent]:
+    async def stream(self,
+                     event_type: Type[BaseEvent],
+                     max: Optional[int] = None) -> AsyncIterable[BaseEvent]:
         queue: asyncio.Queue = asyncio.Queue()
 
         if event_type not in self._queues:
@@ -122,12 +124,18 @@ class Endpoint:
 
         self._queues[event_type].append(queue)
 
+        i = None if max is None else 0
         while True:
             event = await queue.get()
+            if i is not None:
+                i += 1
             try:
                 yield event
             except GeneratorExit:
                 self._queues[event_type].remove(queue)
+            else:
+                if i is not None and i >= cast(int, max):
+                    break
 
     def stop(self) -> None:
         self._running = False
