@@ -40,7 +40,7 @@ class Endpoint:
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
         self._running = False
-        self._executor = None
+        self._executor: Optional[ThreadPoolExecutor] = None
 
     def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         """
