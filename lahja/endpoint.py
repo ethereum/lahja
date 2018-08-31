@@ -43,6 +43,10 @@ class Endpoint:
         self._executor = None
 
     def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+        """
+        Connect the :class:`~lahja.endpoint.Endpoint` to the :class:`~lahja.eventbus.EventBus`
+        instance that created this endpoint.
+        """
         # mypy doesn't recognize loop as Optional[AbstractEventLoop].
         asyncio.ensure_future(self._try_connect(loop), loop=loop)  # type: ignore
 
@@ -87,6 +91,10 @@ class Endpoint:
                     handler(item)
 
     def stop(self) -> None:
+        """
+        Stop the :class:`~lahja.endpoint.Endpoint` from receiving further events, effectively
+        disconnecting it from the to the :class:`~lahja.eventbus.EventBus` that created it.
+        """
         self._running = False
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
         if self._executor is not None:
@@ -94,10 +102,20 @@ class Endpoint:
         self._receiving_queue.close()
 
     def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
+        """
+        Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus. Takes
+        an optional second parameter of :class:`~lahja.misc.BroadcastConfig` to decide
+        where this event should be broadcasted to. By default, events are broadcasted across
+        all connected endpoints with their consuming call sites.
+        """
         item._origin = self.name
         self._sending_queue.put_nowait((item, config))
 
     async def request(self, item: BaseEvent) -> BaseEvent:
+        """
+        Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus and immediately
+        wait on an expected answer of type :class:`~lahja.misc.BaseEvent`.
+        """
         item._origin = self.name
         item._id = str(uuid.uuid4())
 
@@ -113,7 +131,11 @@ class Endpoint:
     def subscribe(self,
                   event_type: Type[BaseEvent],
                   handler: Callable[[BaseEvent], None]) -> Subscription:
-
+        """
+        Subscribe to receive updates for any event that matches the specified event type.
+        A handler is passed as a second argument an :class:`~lahja.misc.Subscription` is returned
+        to unsubscribe from the event if needed.
+        """
         if event_type not in self._handler:
             self._handler[event_type] = []
 
@@ -124,6 +146,12 @@ class Endpoint:
     async def stream(self,
                      event_type: Type[BaseEvent],
                      max: Optional[int] = None) -> AsyncIterable[BaseEvent]:
+        """
+        Stream all events that match the specified event type. This returns an
+        ``AsyncIterable[BaseEvent]`` which can be consumed through an ``async for`` loop.
+        An optional ``max`` parameter can be passed to stop streaming after a maximum amount
+        of events was received.
+        """
         queue: asyncio.Queue = asyncio.Queue()
 
         if event_type not in self._queues:
@@ -145,6 +173,9 @@ class Endpoint:
                     break
 
     async def wait_for(self, event_type: Type[BaseEvent]) -> BaseEvent:  # type: ignore
+        """
+        Wait for a single instance of an event that matches the specified event type.
+        """
         # mypy thinks we are missing a return statement but this seems fair to do
         async for event in self.stream(event_type, max=1):
             return event
