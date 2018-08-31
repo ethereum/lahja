@@ -60,10 +60,16 @@ class Endpoint:
         return cast(BaseEvent, result)
 
     def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
-        if loop is not None:
-            asyncio.ensure_future(self._connect(), loop=loop)
-        else:
-            asyncio.ensure_future(self._connect())
+        # mypy doesn't recognize loop as Optional[AbstractEventLoop].
+        asyncio.ensure_future(self._try_connect(loop), loop=loop)  # type: ignore
+
+    async def _try_connect(self, loop: asyncio.AbstractEventLoop) -> None:
+        # We need to handle exceptions here to not get `Task exception was never retrieved`
+        # errors in case the `connect()` fails (e.g. because the remote process is shutting down)
+        try:
+            await asyncio.ensure_future(self._connect(), loop=loop)
+        except Exception as exc:
+            raise Exception("Exception from Endpoint.connect()") from exc
 
     async def _connect(self) -> None:
         self._running = True
