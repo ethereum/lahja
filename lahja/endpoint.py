@@ -42,23 +42,6 @@ class Endpoint:
         self._running = False
         self._executor = None
 
-    def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
-        item._origin = self.name
-        self._sending_queue.put_nowait((item, config))
-
-    async def request(self, item: BaseEvent) -> BaseEvent:
-        item._origin = self.name
-        item._id = str(uuid.uuid4())
-
-        future: asyncio.Future = asyncio.Future()
-        self._futures[item._id] = future
-
-        self._sending_queue.put_nowait((item, None))
-
-        result = await future
-
-        return cast(BaseEvent, result)
-
     def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         # mypy doesn't recognize loop as Optional[AbstractEventLoop].
         asyncio.ensure_future(self._try_connect(loop), loop=loop)  # type: ignore
@@ -103,6 +86,30 @@ class Endpoint:
                 for handler in self._handler[event_type]:
                     handler(item)
 
+    def stop(self) -> None:
+        self._running = False
+        self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
+        if self._executor is not None:
+            self._executor.shutdown()
+        self._receiving_queue.close()
+
+    def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
+        item._origin = self.name
+        self._sending_queue.put_nowait((item, config))
+
+    async def request(self, item: BaseEvent) -> BaseEvent:
+        item._origin = self.name
+        item._id = str(uuid.uuid4())
+
+        future: asyncio.Future = asyncio.Future()
+        self._futures[item._id] = future
+
+        self._sending_queue.put_nowait((item, None))
+
+        result = await future
+
+        return cast(BaseEvent, result)
+
     def subscribe(self,
                   event_type: Type[BaseEvent],
                   handler: Callable[[BaseEvent], None]) -> Subscription:
@@ -141,10 +148,3 @@ class Endpoint:
         # mypy thinks we are missing a return statement but this seems fair to do
         async for event in self.stream(event_type, max=1):
             return event
-
-    def stop(self) -> None:
-        self._running = False
-        self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
-        if self._executor is not None:
-            self._executor.shutdown()
-        self._receiving_queue.close()
