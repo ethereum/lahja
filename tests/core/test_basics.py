@@ -1,4 +1,5 @@
 import asyncio
+
 import pytest
 
 from lahja import (
@@ -39,8 +40,9 @@ async def test_stream_with_max():
     bus.start()
     endpoint.connect()
     stream_counter = 0
+
     async def stream_response():
-        async for ev in endpoint.stream(DummyRequest, max=2):
+        async for _ in endpoint.stream(DummyRequest, max=2):  # noqa: F841
             nonlocal stream_counter
             stream_counter += 1
 
@@ -62,6 +64,7 @@ async def test_wait_for():
     bus.start()
     endpoint.connect()
     received = None
+
     async def stream_response():
         request = await endpoint.wait_for(DummyRequest)
         nonlocal received
@@ -73,4 +76,3 @@ async def test_wait_for():
     await asyncio.sleep(0.01)
     bus.shutdown()
     assert isinstance(received, DummyRequest)
-

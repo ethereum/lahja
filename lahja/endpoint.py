@@ -1,6 +1,6 @@
 import asyncio
 from concurrent.futures.thread import (
-    ThreadPoolExecutor
+    ThreadPoolExecutor,
 )
 import multiprocessing
 from typing import (  # noqa: F401

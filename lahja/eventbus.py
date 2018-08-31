@@ -1,13 +1,13 @@
 import asyncio
+from concurrent.futures.thread import (
+    ThreadPoolExecutor,
+)
 import multiprocessing  # noqa: F401
 from multiprocessing.queues import (
     Queue,
 )
 from types import (
     ModuleType,
-)
-from concurrent.futures.thread import (
-    ThreadPoolExecutor
 )
 from typing import (  # noqa: F401
     Dict,
