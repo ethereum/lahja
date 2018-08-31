@@ -74,8 +74,8 @@ class EventBus:
     def stop(self) -> None:
         self._running = False
         self._incoming_queue.put_nowait((TRANSPARENT_EVENT, None))
-        self._incoming_queue.close()
         self._executor.shutdown()
+        self._incoming_queue.close()
 
     def shutdown(self) -> None:
         for endpoint in self._endpoints.values():

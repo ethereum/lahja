@@ -132,6 +132,6 @@ class Endpoint:
     def stop(self) -> None:
         self._running = False
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
-        self._receiving_queue.close()
         if self._executor is not None:
             self._executor.shutdown()
+        self._receiving_queue.close()
