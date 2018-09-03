@@ -30,7 +30,8 @@ async def test_request():
 
     response = await endpoint.request(DummyRequest())
     assert isinstance(response, DummyResponse)
-    bus.shutdown()
+    endpoint.stop()
+    bus.stop()
 
 
 @pytest.mark.asyncio
@@ -53,7 +54,8 @@ async def test_stream_with_max():
         endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
-    bus.shutdown()
+    endpoint.stop()
+    bus.stop()
     assert stream_counter == 2
 
 
@@ -74,5 +76,6 @@ async def test_wait_for():
     endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
-    bus.shutdown()
+    endpoint.stop()
+    bus.stop()
     assert isinstance(received, DummyRequest)
