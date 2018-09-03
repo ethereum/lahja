@@ -95,6 +95,9 @@ class Endpoint:
         Stop the :class:`~lahja.endpoint.Endpoint` from receiving further events, effectively
         disconnecting it from the to the :class:`~lahja.eventbus.EventBus` that created it.
         """
+        if not self._running:
+            return
+
         self._running = False
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
         if self._executor is not None:
