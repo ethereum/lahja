@@ -29,10 +29,9 @@ class BroadcastConfig:
 
 class BaseEvent:
 
-    def __init__(self) -> None:
-        self._origin = ''
-        self._id: Optional[str] = None
-        self._config: Optional[BroadcastConfig] = None
+    _origin = ''
+    _id: Optional[str] = None
+    _config: Optional[BroadcastConfig] = None
 
     def broadcast_config(self) -> BroadcastConfig:
         return BroadcastConfig(
