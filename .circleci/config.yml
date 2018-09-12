@@ -60,12 +60,6 @@ jobs:
       - image: circleci/python:3.7
         environment:
           TOXENV: py37-core
-  pypy3-core:
-    <<: *common
-    docker:
-      - image: pypy
-        environment:
-          TOXENV: pypy3-core
 workflows:
   version: 2
   test:
@@ -74,4 +68,3 @@ workflows:
       - lint
       - py36-core
       - py37-core
-      - pypy3-core
