@@ -1,4 +1,4 @@
 
 
-def test_import():
+def test_import() -> None:
     import lahja  # noqa: F401

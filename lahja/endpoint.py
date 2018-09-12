@@ -11,6 +11,7 @@ from typing import (  # noqa: F401
     List,
     Optional,
     Type,
+    TypeVar,
     cast,
 )
 import uuid
@@ -21,6 +22,7 @@ from .async_util import (
 from .misc import (
     TRANSPARENT_EVENT,
     BaseEvent,
+    BaseRequestResponseEvent,
     BroadcastConfig,
     Subscription,
 )
@@ -114,7 +116,9 @@ class Endpoint:
         item._origin = self.name
         self._sending_queue.put_nowait((item, config))
 
-    async def request(self, item: BaseEvent) -> BaseEvent:
+    TResponse = TypeVar('TResponse', bound=BaseEvent)
+
+    async def request(self, item: BaseRequestResponseEvent[TResponse]) -> TResponse:
         """
         Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus and immediately
         wait on an expected answer of type :class:`~lahja.misc.BaseEvent`.
@@ -129,11 +133,15 @@ class Endpoint:
 
         result = await future
 
-        return cast(BaseEvent, result)
+        # We ignore the warning (not error) of returning `Any`. Since `TResponse` is
+        # nothing we can cast to, I guess we can't do any better.
+        return result  # type: ignore
+
+    TSubscribeEvent = TypeVar('TSubscribeEvent', bound=BaseEvent)
 
     def subscribe(self,
-                  event_type: Type[BaseEvent],
-                  handler: Callable[[BaseEvent], None]) -> Subscription:
+                  event_type: Type[TSubscribeEvent],
+                  handler: Callable[[TSubscribeEvent], None]) -> Subscription:
         """
         Subscribe to receive updates for any event that matches the specified event type.
         A handler is passed as a second argument an :class:`~lahja.misc.Subscription` is returned
@@ -142,13 +150,17 @@ class Endpoint:
         if event_type not in self._handler:
             self._handler[event_type] = []
 
-        self._handler[event_type].append(handler)
+        casted_handler = cast(Callable[[BaseEvent], Any], handler)
 
-        return Subscription(lambda: self._handler[event_type].remove(handler))
+        self._handler[event_type].append(casted_handler)
+
+        return Subscription(lambda: self._handler[event_type].remove(casted_handler))
+
+    TStreamEvent = TypeVar('TStreamEvent', bound=BaseEvent)
 
     async def stream(self,
-                     event_type: Type[BaseEvent],
-                     max: Optional[int] = None) -> AsyncIterable[BaseEvent]:
+                     event_type: Type[TStreamEvent],
+                     max: Optional[int] = None) -> AsyncIterable[TStreamEvent]:
         """
         Stream all events that match the specified event type. This returns an
         ``AsyncIterable[BaseEvent]`` which can be consumed through an ``async for`` loop.
@@ -175,7 +187,9 @@ class Endpoint:
                 if i is not None and i >= cast(int, max):
                     break
 
-    async def wait_for(self, event_type: Type[BaseEvent]) -> BaseEvent:  # type: ignore
+    TWaitForEvent = TypeVar('TWaitForEvent', bound=BaseEvent)
+
+    async def wait_for(self, event_type: Type[TWaitForEvent]) -> TWaitForEvent:  # type: ignore
         """
         Wait for a single instance of an event that matches the specified event type.
         """

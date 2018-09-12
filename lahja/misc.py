@@ -1,7 +1,9 @@
 from typing import (  # noqa: F401
     Any,
     Callable,
+    Generic,
     Optional,
+    TypeVar,
 )
 
 
@@ -38,6 +40,13 @@ class BaseEvent:
             filter_endpoint=self._origin,
             filter_event_id=self._id
         )
+
+
+TResponse = TypeVar('TResponse', bound=BaseEvent)
+
+
+class BaseRequestResponseEvent(BaseEvent, Generic[TResponse]):
+    pass
 
 
 class TransparentEvent(BaseEvent):
