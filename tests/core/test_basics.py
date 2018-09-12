@@ -1,6 +1,7 @@
 import asyncio
 from typing import (
     Any,
+    Type,
 )
 
 import pytest
@@ -9,6 +10,7 @@ from lahja import (
     BaseEvent,
     BaseRequestResponseEvent,
     EventBus,
+    UnexpectedResponse,
 )
 
 
@@ -25,6 +27,10 @@ class DummyResponse(BaseEvent):
 
 class DummyRequestPair(BaseRequestResponseEvent[DummyResponse]):
     property_of_dummy_request_pair = None
+
+    @staticmethod
+    def expected_response_type() -> Type[DummyResponse]:
+        return DummyResponse
 
 
 @pytest.mark.asyncio
@@ -48,6 +54,28 @@ async def test_request() -> None:
     # mypy has the type information we think it has. We run mypy on the tests.
     print(response.property_of_dummy_response)
     assert isinstance(response, DummyResponse)
+    endpoint.stop()
+    bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_response_must_match() -> None:
+    bus = EventBus()
+    endpoint = bus.create_endpoint('test')
+    bus.start()
+    endpoint.connect()
+
+    endpoint.subscribe(
+        DummyRequestPair,
+        lambda ev: endpoint.broadcast(
+            # We intentionally broadcast an unexpected response. Mypy can't catch
+            # this but we ensure it is caught and raised during the processing.
+            DummyRequest(), ev.broadcast_config()
+        )
+    )
+
+    with pytest.raises(UnexpectedResponse):
+        await endpoint.request(DummyRequestPair())
     endpoint.stop()
     bus.stop()
 

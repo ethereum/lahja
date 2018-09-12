@@ -1,8 +1,13 @@
+from abc import (
+    ABC,
+    abstractmethod,
+)
 from typing import (  # noqa: F401
     Any,
     Callable,
     Generic,
     Optional,
+    Type,
     TypeVar,
 )
 
@@ -45,8 +50,17 @@ class BaseEvent:
 TResponse = TypeVar('TResponse', bound=BaseEvent)
 
 
-class BaseRequestResponseEvent(BaseEvent, Generic[TResponse]):
-    pass
+class BaseRequestResponseEvent(ABC, BaseEvent, Generic[TResponse]):
+
+    @staticmethod
+    @abstractmethod
+    def expected_response_type() -> Type[TResponse]:
+        """
+        Return the type that is expected to be send back for this request.
+        This ensures that at runtime, only expected responses can be send
+        back to callsites that issued a `BaseRequestResponseEvent`
+        """
+        raise NotImplementedError("Must be implemented by subsclasses")
 
 
 class TransparentEvent(BaseEvent):

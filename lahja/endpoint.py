@@ -19,6 +19,9 @@ import uuid
 from .async_util import (
     async_get,
 )
+from .exceptions import (
+    UnexpectedResponse,
+)
 from .misc import (
     TRANSPARENT_EVENT,
     BaseEvent,
@@ -133,9 +136,13 @@ class Endpoint:
 
         result = await future
 
-        # We ignore the warning (not error) of returning `Any`. Since `TResponse` is
-        # nothing we can cast to, I guess we can't do any better.
-        return result  # type: ignore
+        expected_response_type = item.expected_response_type()
+        if not isinstance(result, expected_response_type):
+            raise UnexpectedResponse(
+                f"The type of the response is {type(result)}, expected: {expected_response_type}"
+            )
+
+        return result
 
     TSubscribeEvent = TypeVar('TSubscribeEvent', bound=BaseEvent)
 
