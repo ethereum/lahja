@@ -13,6 +13,7 @@ from typing import (  # noqa: F401
     Dict,
     List,
     Optional,
+    Union,
 )
 
 from .async_util import (
@@ -29,7 +30,9 @@ from .misc import (
 
 class EventBus:
 
-    def __init__(self, ctx: ModuleType = multiprocessing) -> None:
+    def __init__(self,
+                 ctx: Union[ModuleType, multiprocessing.context.BaseContext] = multiprocessing
+                 ) -> None:
         self.ctx = ctx
         self._queues: List[multiprocessing.Queue] = []
         self._endpoints: Dict[str, Endpoint] = {}
