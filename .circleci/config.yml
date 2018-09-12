@@ -54,6 +54,12 @@ jobs:
       - image: circleci/python:3.6
         environment:
           TOXENV: py36-core
+  py37-core:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7
+        environment:
+          TOXENV: py37-core
   pypy3-core:
     <<: *common
     docker:
@@ -67,4 +73,5 @@ workflows:
       - doctest
       - lint
       - py36-core
+      - py37-core
       - pypy3-core
