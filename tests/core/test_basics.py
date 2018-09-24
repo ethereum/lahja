@@ -9,6 +9,7 @@ import pytest
 from lahja import (
     BaseEvent,
     BaseRequestResponseEvent,
+    Endpoint,
     EventBus,
     UnexpectedResponse,
 )
@@ -34,12 +35,7 @@ class DummyRequestPair(BaseRequestResponseEvent[DummyResponse]):
 
 
 @pytest.mark.asyncio
-async def test_request() -> None:
-    bus = EventBus()
-    endpoint = bus.create_endpoint('test')
-    bus.start()
-    endpoint.connect()
-
+async def test_request(endpoint: Endpoint) -> None:
     endpoint.subscribe(
         DummyRequestPair,
         lambda ev: endpoint.broadcast(
@@ -54,12 +50,10 @@ async def test_request() -> None:
     # mypy has the type information we think it has. We run mypy on the tests.
     print(response.property_of_dummy_response)
     assert isinstance(response, DummyResponse)
-    endpoint.stop()
-    bus.stop()
 
 
 @pytest.mark.asyncio
-async def test_response_must_match() -> None:
+async def test_response_must_match(endpoint: Endpoint) -> None:
     bus = EventBus()
     endpoint = bus.create_endpoint('test')
     bus.start()
@@ -81,11 +75,7 @@ async def test_response_must_match() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_with_max() -> None:
-    bus = EventBus()
-    endpoint = bus.create_endpoint('test')
-    bus.start()
-    endpoint.connect()
+async def test_stream_with_max(endpoint: Endpoint) -> None:
     stream_counter = 0
 
     async def stream_response() -> None:
@@ -103,17 +93,11 @@ async def test_stream_with_max() -> None:
         endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
-    endpoint.stop()
-    bus.stop()
     assert stream_counter == 2
 
 
 @pytest.mark.asyncio
-async def test_wait_for() -> None:
-    bus = EventBus()
-    endpoint = bus.create_endpoint('test')
-    bus.start()
-    endpoint.connect()
+async def test_wait_for(endpoint: Endpoint) -> None:
     received = None
 
     async def stream_response() -> None:
@@ -128,6 +112,4 @@ async def test_wait_for() -> None:
     endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
-    endpoint.stop()
-    bus.stop()
     assert isinstance(received, DummyRequest)
