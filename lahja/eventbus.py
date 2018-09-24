@@ -69,7 +69,8 @@ class EventBus:
                 if not self._is_allowed_to_receive(config, endpoint.name):
                     continue
 
-                endpoint._receiving_queue.put_nowait((item, config))
+                if self._running:
+                    endpoint._receiving_queue.put_nowait((item, config))
 
     def _is_allowed_to_receive(self, config: BroadcastConfig, endpoint: str) -> bool:
         return config is None or config.allowed_to_receive(endpoint)
