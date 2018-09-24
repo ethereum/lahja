@@ -6,17 +6,24 @@ from lahja import (
     Endpoint,
     EventBus,
     BaseEvent,
+    BaseRequestResponseEvent,
     BroadcastConfig,
 )
 
-# Define request / response pair
-class GetSomethingRequest(BaseEvent):
-    pass
 
 class DeliverSomethingResponse(BaseEvent):
     def __init__(self, payload):
         super().__init__()
         self.payload = payload
+
+
+# Define request / response pair
+class GetSomethingRequest(BaseRequestResponseEvent[DeliverSomethingResponse]):
+
+    @staticmethod
+    def expected_response_type():
+        return DeliverSomethingResponse
+
 
 # Base functions for first process
 def run_proc1(endpoint):
