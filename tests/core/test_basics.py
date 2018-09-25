@@ -45,11 +45,14 @@ async def test_request(endpoint: Endpoint) -> None:
         )
     )
 
-    response = await endpoint.request(DummyRequestPair())
+    item = DummyRequestPair()
+    response = await endpoint.request(item)
     # Accessing `ev.property_of_dummy_response` here allows us to validate
     # mypy has the type information we think it has. We run mypy on the tests.
     print(response.property_of_dummy_response)
     assert isinstance(response, DummyResponse)
+    # Ensure the registration was cleaned up
+    assert item._id not in endpoint._futures
 
 
 @pytest.mark.asyncio
