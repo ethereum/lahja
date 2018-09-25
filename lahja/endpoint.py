@@ -128,7 +128,12 @@ class Endpoint:
         all connected endpoints with their consuming call sites.
         """
         item._origin = self.name
-        self._sending_queue.put_nowait((item, config))
+        if config is not None and config.internal:
+            # Internal events simply bypass going through the central event bus
+            # and are directly put into the local receiving queue instead.
+            self._receiving_queue.put_nowait((item, config))
+        else:
+            self._sending_queue.put_nowait((item, config))
 
     TResponse = TypeVar('TResponse', bound=BaseEvent)
 
