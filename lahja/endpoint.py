@@ -180,7 +180,6 @@ class Endpoint:
             self._queues[event_type] = []
 
         self._queues[event_type].append(queue)
-
         i = None if max is None else 0
         while True:
             event = await queue.get()
@@ -192,6 +191,7 @@ class Endpoint:
                 self._queues[event_type].remove(queue)
             else:
                 if i is not None and i >= cast(int, max):
+                    self._queues[event_type].remove(queue)
                     break
 
     TWaitForEvent = TypeVar('TWaitForEvent', bound=BaseEvent)
