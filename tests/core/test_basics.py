@@ -56,6 +56,17 @@ async def test_request(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_can_get_cancelled(endpoint: Endpoint) -> None:
+
+    item = DummyRequestPair()
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(endpoint.request(item), 0.1)
+    await asyncio.sleep(0.01)
+    # Ensure the registration was cleaned up
+    assert item._id not in endpoint._futures
+
+
+@pytest.mark.asyncio
 async def test_response_must_match(endpoint: Endpoint) -> None:
     bus = EventBus()
     endpoint = bus.create_endpoint('test')

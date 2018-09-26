@@ -2,6 +2,7 @@ import asyncio
 from concurrent.futures.thread import (
     ThreadPoolExecutor,
 )
+import functools
 import multiprocessing
 from typing import (  # noqa: F401
     Any,
@@ -134,6 +135,8 @@ class Endpoint:
 
         self._sending_queue.put_nowait((item, None))
 
+        future.add_done_callback(functools.partial(self._remove_cancelled_future, item._id))
+
         result = await future
 
         expected_response_type = item.expected_response_type()
@@ -145,6 +148,12 @@ class Endpoint:
         return result
 
     TSubscribeEvent = TypeVar('TSubscribeEvent', bound=BaseEvent)
+
+    def _remove_cancelled_future(self, id: str, future: asyncio.Future) -> None:
+        try:
+            future.exception()
+        except asyncio.CancelledError:
+            del self._futures[id]
 
     def subscribe(self,
                   event_type: Type[TSubscribeEvent],
