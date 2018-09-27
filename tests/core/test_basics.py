@@ -173,6 +173,39 @@ async def test_stream_can_get_cancelled(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
+async def test_stream_cancels_when_parent_task_is_cancelled(endpoint: Endpoint) -> None:
+    stream_counter = 0
+
+    async def stream_response() -> None:
+        nonlocal stream_counter
+        async for event in endpoint.stream(DummyRequest):
+            # Accessing `ev.property_of_dummy_request` here allows us to validate
+            # mypy has the type information we think it has. We run mypy on the tests.
+            print(event.property_of_dummy_request)
+            stream_counter += 1
+            await asyncio.sleep(0.01)
+
+    task = asyncio.ensure_future(stream_response())
+
+    async def cancel_soon() -> None:
+        while True:
+            await asyncio.sleep(0.01)
+            if stream_counter == 2:
+                task.cancel()
+                break
+
+    asyncio.ensure_future(cancel_soon())
+
+    for i in range(10):
+        endpoint.broadcast(DummyRequest())
+
+    await asyncio.sleep(0.1)
+    # Ensure the registration was cleaned up
+    assert len(endpoint._queues[DummyRequest]) == 0
+    assert stream_counter == 2
+
+
+@pytest.mark.asyncio
 async def test_wait_for(endpoint: Endpoint) -> None:
     received = None
 
