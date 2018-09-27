@@ -6,7 +6,7 @@ import functools
 import multiprocessing
 from typing import (  # noqa: F401
     Any,
-    AsyncIterable,
+    AsyncGenerator,
     Callable,
     Dict,
     List,
@@ -176,7 +176,7 @@ class Endpoint:
 
     async def stream(self,
                      event_type: Type[TStreamEvent],
-                     max: Optional[int] = None) -> AsyncIterable[TStreamEvent]:
+                     max: Optional[int] = None) -> AsyncGenerator[TStreamEvent, None]:
         """
         Stream all events that match the specified event type. This returns an
         ``AsyncIterable[BaseEvent]`` which can be consumed through an ``async for`` loop.
@@ -196,8 +196,9 @@ class Endpoint:
                 i += 1
             try:
                 yield event
-            except GeneratorExit:
+            except GeneratorExit as e:
                 self._queues[event_type].remove(queue)
+                raise e
             else:
                 if i is not None and i >= cast(int, max):
                     self._queues[event_type].remove(queue)
