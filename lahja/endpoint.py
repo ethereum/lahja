@@ -21,6 +21,7 @@ from .async_util import (
     async_get,
 )
 from .exceptions import (
+    NoConnection,
     UnexpectedResponse,
 )
 from .misc import (
@@ -48,13 +49,22 @@ class Endpoint:
         self._running = False
         self._executor: Optional[ThreadPoolExecutor] = None
 
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is None:
+            raise NoConnection("Need to call `connect()` first")
+        return self._loop
+
     def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         """
         Connect the :class:`~lahja.endpoint.Endpoint` to the :class:`~lahja.eventbus.EventBus`
         instance that created this endpoint.
         """
-        # mypy doesn't recognize loop as Optional[AbstractEventLoop].
-        asyncio.ensure_future(self._try_connect(loop), loop=loop)  # type: ignore
+        if (loop is None):
+            loop = asyncio.get_event_loop()
+
+        self._loop = loop
+        asyncio.ensure_future(self._try_connect(loop), loop=loop)
 
     async def _try_connect(self, loop: asyncio.AbstractEventLoop) -> None:
         # We need to handle exceptions here to not get `Task exception was never retrieved`
@@ -130,7 +140,7 @@ class Endpoint:
         item._origin = self.name
         item._id = str(uuid.uuid4())
 
-        future: asyncio.Future = asyncio.Future()
+        future: asyncio.Future = asyncio.Future(loop=self.loop)
         self._futures[item._id] = future
 
         self._sending_queue.put_nowait((item, None))
