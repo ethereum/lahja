@@ -186,11 +186,11 @@ class Endpoint:
 
     async def stream(self,
                      event_type: Type[TStreamEvent],
-                     max: Optional[int] = None) -> AsyncGenerator[TStreamEvent, None]:
+                     num_events: Optional[int] = None) -> AsyncGenerator[TStreamEvent, None]:
         """
         Stream all events that match the specified event type. This returns an
         ``AsyncIterable[BaseEvent]`` which can be consumed through an ``async for`` loop.
-        An optional ``max`` parameter can be passed to stop streaming after a maximum amount
+        An optional ``num_events`` parameter can be passed to stop streaming after a maximum amount
         of events was received.
         """
         queue: asyncio.Queue = asyncio.Queue()
@@ -199,7 +199,7 @@ class Endpoint:
             self._queues[event_type] = []
 
         self._queues[event_type].append(queue)
-        i = None if max is None else 0
+        i = None if num_events is None else 0
         while True:
             try:
                 yield await queue.get()
@@ -215,7 +215,7 @@ class Endpoint:
 
                 i += 1
 
-                if i >= cast(int, max):
+                if i >= cast(int, num_events):
                     self._queues[event_type].remove(queue)
                     break
 
@@ -226,5 +226,5 @@ class Endpoint:
         Wait for a single instance of an event that matches the specified event type.
         """
         # mypy thinks we are missing a return statement but this seems fair to do
-        async for event in self.stream(event_type, max=1):
+        async for event in self.stream(event_type, num_events=1):
             return event

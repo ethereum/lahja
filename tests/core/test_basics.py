@@ -116,15 +116,15 @@ async def test_stream_with_break(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_with_max(endpoint: Endpoint) -> None:
+async def test_stream_with_num_events(endpoint: Endpoint) -> None:
     stream_counter = 0
 
     async def stream_response() -> None:
-        async for event in endpoint.stream(DummyRequest, max=2):
+        nonlocal stream_counter
+        async for event in endpoint.stream(DummyRequest, num_events=2):
             # Accessing `ev.property_of_dummy_request` here allows us to validate
             # mypy has the type information we think it has. We run mypy on the tests.
             print(event.property_of_dummy_request)
-            nonlocal stream_counter
             stream_counter += 1
 
     asyncio.ensure_future(stream_response())
