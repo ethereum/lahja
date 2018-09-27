@@ -60,7 +60,7 @@ async def test_request_can_get_cancelled(endpoint: Endpoint) -> None:
 
     item = DummyRequestPair()
     with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(endpoint.request(item), 0.1)
+        await asyncio.wait_for(endpoint.request(item), 0.01)
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
     assert item._id not in endpoint._futures
@@ -109,7 +109,7 @@ async def test_stream_with_break(endpoint: Endpoint) -> None:
     for i in range(5):
         endpoint.broadcast(DummyRequest())
 
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
     assert len(endpoint._queues[DummyRequest]) == 0
     assert stream_counter == 2
@@ -152,7 +152,7 @@ async def test_stream_can_get_cancelled(endpoint: Endpoint) -> None:
             # mypy has the type information we think it has. We run mypy on the tests.
             print(event.property_of_dummy_request)
             stream_counter += 1
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)
 
     async def cancel_soon() -> None:
         while True:
@@ -166,7 +166,7 @@ async def test_stream_can_get_cancelled(endpoint: Endpoint) -> None:
     for i in range(50):
         endpoint.broadcast(DummyRequest())
 
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.2)
     # Ensure the registration was cleaned up
     assert len(endpoint._queues[DummyRequest]) == 0
     assert stream_counter == 2
@@ -195,7 +195,7 @@ async def test_wait_for(endpoint: Endpoint) -> None:
 async def test_wait_for_can_get_cancelled(endpoint: Endpoint) -> None:
 
     with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(endpoint.wait_for(DummyRequest), 0.1)
-    await asyncio.sleep(0.1)
+        await asyncio.wait_for(endpoint.wait_for(DummyRequest), 0.01)
+    await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
     assert len(endpoint._queues[DummyRequest]) == 0
