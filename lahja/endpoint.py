@@ -191,16 +191,21 @@ class Endpoint:
         self._queues[event_type].append(queue)
         i = None if max is None else 0
         while True:
-            event = await queue.get()
-            if i is not None:
-                i += 1
             try:
-                yield event
+                yield await queue.get()
             except GeneratorExit as e:
                 self._queues[event_type].remove(queue)
                 raise e
+            except asyncio.CancelledError as e:
+                self._queues[event_type].remove(queue)
+                raise e
             else:
-                if i is not None and i >= cast(int, max):
+                if i is None:
+                    continue
+
+                i += 1
+
+                if i >= cast(int, max):
                     self._queues[event_type].remove(queue)
                     break
 

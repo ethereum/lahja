@@ -189,3 +189,13 @@ async def test_wait_for(endpoint: Endpoint) -> None:
 
     await asyncio.sleep(0.01)
     assert isinstance(received, DummyRequest)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_can_get_cancelled(endpoint: Endpoint) -> None:
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(endpoint.wait_for(DummyRequest), 0.1)
+    await asyncio.sleep(0.1)
+    # Ensure the registration was cleaned up
+    assert len(endpoint._queues[DummyRequest]) == 0
