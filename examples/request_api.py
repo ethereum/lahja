@@ -28,7 +28,7 @@ class GetSomethingRequest(BaseRequestResponseEvent[DeliverSomethingResponse]):
 # Base functions for first process
 def run_proc1(endpoint):
     loop = asyncio.get_event_loop()
-    endpoint.connect()
+    endpoint.connect_no_wait()
     # Listen for `GetSomethingRequest`'s
     endpoint.subscribe(GetSomethingRequest, lambda event:
         # Send a response back to *only* who made that request
@@ -39,7 +39,7 @@ def run_proc1(endpoint):
 # Base functions for second process
 def run_proc2(endpoint):
     loop = asyncio.get_event_loop()
-    endpoint.connect()
+    endpoint.connect_no_wait()
 
     loop.run_until_complete(proc2_worker(endpoint))
 

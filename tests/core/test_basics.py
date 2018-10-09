@@ -71,7 +71,7 @@ async def test_response_must_match(endpoint: Endpoint) -> None:
     bus = EventBus()
     endpoint = bus.create_endpoint('test')
     bus.start()
-    endpoint.connect()
+    await endpoint.connect()
 
     endpoint.subscribe(
         DummyRequestPair,

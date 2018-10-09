@@ -43,68 +43,118 @@ class Endpoint:
         self.name = name
         self._sending_queue = sending_queue
         self._receiving_queue = receiving_queue
-        self._futures: Dict[str, asyncio.Future] = {}
+        self._futures: Dict[Optional[str], asyncio.Future] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
-        self._running = False
         self._executor: Optional[ThreadPoolExecutor] = None
+        self._running = False
+        self._optional_internal_queue: Optional[asyncio.Queue] = None
+        self._optional_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._optional_receiving_loop_running: Optional[asyncio.Event] = None
+        self._optional_internal_loop_running: Optional[asyncio.Event] = None
 
     @property
-    def loop(self) -> asyncio.AbstractEventLoop:
-        if self._loop is None:
-            raise NoConnection("Need to call `connect()` first")
-        return self._loop
+    def _loop(self) -> asyncio.AbstractEventLoop:
+        if self._optional_loop is None:
+            raise NoConnection("Need to connect first")
+        return self._optional_loop
 
-    def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    @property
+    def _internal_queue(self) -> asyncio.Queue:
+        if self._optional_internal_queue is None:
+            raise NoConnection("Need to connect first")
+        return self._optional_internal_queue
+
+    @property
+    def _receiving_loop_running(self) -> asyncio.Event:
+        if self._optional_receiving_loop_running is None:
+            raise NoConnection("Need to connect first")
+        return self._optional_receiving_loop_running
+
+    @property
+    def _internal_loop_running(self) -> asyncio.Event:
+        if self._optional_internal_loop_running is None:
+            raise NoConnection("Need to connect first")
+        return self._optional_internal_loop_running
+
+    def connect_no_wait(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         """
         Connect the :class:`~lahja.endpoint.Endpoint` to the :class:`~lahja.eventbus.EventBus`
         instance that created this endpoint.
         """
-        if (loop is None):
+        if loop is None:
             loop = asyncio.get_event_loop()
 
-        self._loop = loop
-        asyncio.ensure_future(self._try_connect(loop), loop=loop)
+        self._optional_loop = loop
+        self._optional_internal_loop_running = asyncio.Event(loop=self._loop)
+        self._optional_receiving_loop_running = asyncio.Event(loop=self._loop)
+        self._optional_internal_queue = asyncio.Queue()
 
-    async def _try_connect(self, loop: asyncio.AbstractEventLoop) -> None:
-        # We need to handle exceptions here to not get `Task exception was never retrieved`
-        # errors in case the `connect()` fails (e.g. because the remote process is shutting down)
-        try:
-            await asyncio.ensure_future(self._connect(), loop=loop)
-        except Exception as exc:
-            raise Exception("Exception from Endpoint.connect()") from exc
+        # Using `gather` (over e.g. `wait` or plain `ensure_future`) ensures that the inner futures
+        # are automatically cancelled as soon as the parent task is cancelled
+        asyncio.gather(
+            asyncio.ensure_future(self._connect_receiving_queue(), loop=self._loop),
+            asyncio.ensure_future(self._connect_internal_queue(), loop=self._loop),
+            loop=self._loop
+        )
 
-    async def _connect(self) -> None:
         self._running = True
+
+    async def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+        self.connect_no_wait(loop)
+        await self.wait_for_connection()
+
+    async def wait_for_connection(self) -> None:
+        """
+        Wait until the ``Endpoint`` has established a connection to the ``EventBus``
+        """
+        await asyncio.gather(
+            self._receiving_loop_running.wait(),
+            self._internal_loop_running.wait(),
+            loop=self._loop
+        )
+
+    async def _connect_receiving_queue(self) -> None:
+        self._receiving_loop_running.set()
         self._executor = ThreadPoolExecutor()
         while self._running:
             (item, config) = await async_get(self._receiving_queue, executor=self._executor)
 
-            if item is TRANSPARENT_EVENT:
-                continue
+            self._process_item(item, config)
 
-            has_config = config is not None
+    async def _connect_internal_queue(self) -> None:
+        self._internal_loop_running.set()
+        while self._running:
+            (item, config) = await self._internal_queue.get()
 
-            event_type = type(item)
-            in_futures = has_config and config.filter_event_id in self._futures
-            in_queue = event_type in self._queues
-            in_handler = event_type in self._handler
+            self._process_item(item, config)
 
-            if not in_queue and not in_handler and not in_futures:
-                continue
+    def _process_item(self, item: BaseEvent, config: BroadcastConfig) -> None:
+        if item is TRANSPARENT_EVENT:
+            return
 
-            if in_futures:
-                future = self._futures[config.filter_event_id]
-                future.set_result(item)
-                self._futures.pop(config.filter_event_id)
+        has_config = config is not None
 
-            if in_queue:
-                for queue in self._queues[event_type]:
-                    queue.put_nowait(item)
+        event_type = type(item)
+        in_futures = has_config and config.filter_event_id in self._futures
+        in_queue = event_type in self._queues
+        in_handler = event_type in self._handler
 
-            if in_handler:
-                for handler in self._handler[event_type]:
-                    handler(item)
+        if not in_queue and not in_handler and not in_futures:
+            return
+
+        if in_futures:
+            future = self._futures[config.filter_event_id]
+            future.set_result(item)
+            self._futures.pop(config.filter_event_id)
+
+        if in_queue:
+            for queue in self._queues[event_type]:
+                queue.put_nowait(item)
+
+        if in_handler:
+            for handler in self._handler[event_type]:
+                handler(item)
 
     def stop(self) -> None:
         """
@@ -116,6 +166,7 @@ class Endpoint:
 
         self._running = False
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
+        self._internal_queue.put_nowait((TRANSPARENT_EVENT, None))
         if self._executor is not None:
             self._executor.shutdown()
         self._receiving_queue.close()
@@ -131,7 +182,7 @@ class Endpoint:
         if config is not None and config.internal:
             # Internal events simply bypass going through the central event bus
             # and are directly put into the local receiving queue instead.
-            self._receiving_queue.put_nowait((item, config))
+            self._internal_queue.put_nowait((item, config))
         else:
             self._sending_queue.put_nowait((item, config))
 
@@ -145,7 +196,7 @@ class Endpoint:
         item._origin = self.name
         item._id = str(uuid.uuid4())
 
-        future: asyncio.Future = asyncio.Future(loop=self.loop)
+        future: asyncio.Future = asyncio.Future(loop=self._loop)
         self._futures[item._id] = future
 
         self._sending_queue.put_nowait((item, None))

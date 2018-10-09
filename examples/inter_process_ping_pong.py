@@ -25,7 +25,7 @@ class SecondThingHappened(BaseExampleEvent):
 # Base functions for first process
 def run_proc1(endpoint):
     loop = asyncio.get_event_loop()
-    endpoint.connect()
+    endpoint.connect_no_wait()
     endpoint.subscribe(SecondThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc1: ", event.payload)
     )
@@ -47,7 +47,7 @@ async def proc1_worker(endpoint):
 # Base functions for second process
 def run_proc2(endpoint):
     loop = asyncio.get_event_loop()
-    endpoint.connect()
+    endpoint.connect_no_wait()
     endpoint.subscribe(FirstThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc2:", event.payload)
     )
