@@ -10,7 +10,6 @@ from lahja import (
     BaseEvent,
     BaseRequestResponseEvent,
     Endpoint,
-    EventBus,
     UnexpectedResponse,
 )
 
@@ -68,11 +67,6 @@ async def test_request_can_get_cancelled(endpoint: Endpoint) -> None:
 
 @pytest.mark.asyncio
 async def test_response_must_match(endpoint: Endpoint) -> None:
-    bus = EventBus()
-    endpoint = bus.create_endpoint('test')
-    bus.start()
-    await endpoint.connect()
-
     endpoint.subscribe(
         DummyRequestPair,
         lambda ev: endpoint.broadcast(
@@ -84,8 +78,6 @@ async def test_response_must_match(endpoint: Endpoint) -> None:
 
     with pytest.raises(UnexpectedResponse):
         await endpoint.request(DummyRequestPair())
-    endpoint.stop()
-    bus.stop()
 
 
 @pytest.mark.asyncio
