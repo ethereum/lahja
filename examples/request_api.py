@@ -45,8 +45,9 @@ def run_proc2(endpoint):
 
 async def proc2_worker(endpoint):
     for i in range(3):
+        print("Requesting")
         result = await endpoint.request(GetSomethingRequest())
-        print(result.payload)
+        print(f"Got answer: {result.payload}")
 
 if __name__ == "__main__":
     # Configure and start event bus
