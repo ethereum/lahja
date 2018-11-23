@@ -1,23 +1,17 @@
 import asyncio
 from typing import (
-    Any,
     Tuple,
 )
 
 import pytest
 
+from helpers import (
+    DummyResponse,
+)
 from lahja import (
-    BaseEvent,
     BroadcastConfig,
     Endpoint,
 )
-
-
-class DummyResponse(BaseEvent):
-    property_of_dummy_response = None
-
-    def __init__(self, something: Any) -> None:
-        pass
 
 
 @pytest.mark.asyncio

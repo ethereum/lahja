@@ -1,36 +1,16 @@
 import asyncio
-from typing import (
-    Any,
-    Type,
-)
 
 import pytest
 
+from helpers import (
+    DummyRequest,
+    DummyRequestPair,
+    DummyResponse,
+)
 from lahja import (
-    BaseEvent,
-    BaseRequestResponseEvent,
     Endpoint,
     UnexpectedResponse,
 )
-
-
-class DummyRequest(BaseEvent):
-    property_of_dummy_request = None
-
-
-class DummyResponse(BaseEvent):
-    property_of_dummy_response = None
-
-    def __init__(self, something: Any) -> None:
-        pass
-
-
-class DummyRequestPair(BaseRequestResponseEvent[DummyResponse]):
-    property_of_dummy_request_pair = None
-
-    @staticmethod
-    def expected_response_type() -> Type[DummyResponse]:
-        return DummyResponse
 
 
 @pytest.mark.asyncio
