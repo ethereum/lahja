@@ -188,10 +188,15 @@ class Endpoint:
 
     TResponse = TypeVar('TResponse', bound=BaseEvent)
 
-    async def request(self, item: BaseRequestResponseEvent[TResponse]) -> TResponse:
+    async def request(self,
+                      item: BaseRequestResponseEvent[TResponse],
+                      config: Optional[BroadcastConfig] = None) -> TResponse:
         """
-        Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus and immediately
-        wait on an expected answer of type :class:`~lahja.misc.BaseEvent`.
+        Broadcast an instance of :class:`~lahja.misc.BaseRequestResponseEvent` on the event bus and
+        immediately wait on an expected answer of type :class:`~lahja.misc.BaseEvent`. Optionally
+        pass a second parameter of :class:`~lahja.misc.BroadcastConfig` to decide where the request
+        should be broadcasted to. By default, requests are broadcasted across all connected
+        endpoints with their consuming call sites.
         """
         item._origin = self.name
         item._id = str(uuid.uuid4())
@@ -199,7 +204,7 @@ class Endpoint:
         future: asyncio.Future = asyncio.Future(loop=self._loop)
         self._futures[item._id] = future
 
-        self._sending_queue.put_nowait((item, None))
+        self._sending_queue.put_nowait((item, config))
 
         future.add_done_callback(functools.partial(self._remove_cancelled_future, item._id))
 
