@@ -36,6 +36,12 @@ common: &common
         key: cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "setup.py" }}-{{ checksum "tox.ini" }}
 
 jobs:
+  benchmark:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: benchmark
   doctest:
     <<: *common
     docker:
@@ -64,6 +70,7 @@ workflows:
   version: 2
   test:
     jobs:
+      - benchmark
       - doctest
       - lint
       - py36-core

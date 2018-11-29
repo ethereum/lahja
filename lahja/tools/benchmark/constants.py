@@ -1,0 +1,2 @@
+REPORTER_ENDPOINT = "reporter"
+ROOT_ENDPOINT = "root"
