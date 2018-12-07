@@ -264,12 +264,12 @@ class Endpoint:
         while True:
             try:
                 yield await queue.get()
-            except GeneratorExit as e:
+            except GeneratorExit:
                 self._queues[event_type].remove(queue)
-                raise e
-            except asyncio.CancelledError as e:
+                break
+            except asyncio.CancelledError:
                 self._queues[event_type].remove(queue)
-                raise e
+                break
             else:
                 if i is None:
                     continue
