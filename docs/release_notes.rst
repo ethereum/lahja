@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+v0.10.0
+------
+
+- Make `request` API accept a `BroadcastConfig`
+- Add benchmarks
+
 v0.9.0
 ------
 
