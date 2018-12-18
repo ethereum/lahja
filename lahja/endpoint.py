@@ -145,8 +145,9 @@ class Endpoint:
 
         if in_futures:
             future = self._futures[config.filter_event_id]
-            future.set_result(item)
-            self._futures.pop(config.filter_event_id)
+            if not future.done():
+                future.set_result(item)
+            self._futures.pop(config.filter_event_id, None)
 
         if in_queue:
             for queue in self._queues[event_type]:
