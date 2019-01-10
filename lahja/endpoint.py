@@ -225,7 +225,7 @@ class Endpoint:
         try:
             future.exception()
         except asyncio.CancelledError:
-            del self._futures[id]
+            self._futures.pop(id, None)
 
     def subscribe(self,
                   event_type: Type[TSubscribeEvent],
