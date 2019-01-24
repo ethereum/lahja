@@ -169,7 +169,7 @@ class RemoteEndpointAPI(ABC):
 
 class BaseRemoteEndpoint(RemoteEndpointAPI):
     """
-    This base class implements common logic that can be shared across different
+    Base class to implement common logic that can be shared across different
     implementations of the `RemoteEndpointAPI`
 
     Represents a connection to another endpoint.  Connections *can* be

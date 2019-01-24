@@ -131,7 +131,7 @@ def request(
     on_response: Optional[EventHandlerFn] = None,
 ) -> AsyncAction:
     """
-    see ``EndpointAPI.connect_to_endpoints``
+    See ``EndpointAPI.connect_to_endpoints``
 
     Optionally provide a callback ``on_response`` that will be run upon receipt
     of the response.
@@ -155,7 +155,7 @@ async def _connect_to_endpoints(
 
 def connect_to_endpoints(*configs: ConnectionConfig) -> AsyncAction:
     """
-    see ``EndpointAPI.connect_to_endpoints``
+    See ``EndpointAPI.connect_to_endpoints``
     """
     return AsyncAction(_connect_to_endpoints, configs=configs)
 
@@ -172,7 +172,7 @@ async def _wait_until_any_endpoint_subscribed_to(
 
 def wait_until_any_endpoint_subscribed_to(event_type: Type[BaseEvent]) -> AsyncAction:
     """
-    see ``EndpointAPI.wait_until_any_endpoint_subscribed_to``
+    See ``EndpointAPI.wait_until_any_endpoint_subscribed_to``
     """
     return AsyncAction(_wait_until_any_endpoint_subscribed_to, event_type=event_type)
 
@@ -189,7 +189,7 @@ async def _wait_until_connected_to(
 
 def wait_until_connected_to(name: str) -> AsyncAction:
     """
-    see ``EndpointAPI.wait_until_connected_to``
+    See ``EndpointAPI.wait_until_connected_to``
     """
     return AsyncAction(_wait_until_connected_to, name=name)
 
@@ -211,7 +211,7 @@ def broadcast(
     event: BaseEvent, config: Optional[BroadcastConfig] = None
 ) -> AsyncAction:
     """
-    see ``EndpointAPI.broadcast``
+    See ``EndpointAPI.broadcast``
     """
     return AsyncAction(_broadcast, event=event, config=config)
 
