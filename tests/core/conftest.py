@@ -3,65 +3,89 @@ from typing import (
     AsyncGenerator,
     Tuple,
 )
+import uuid
 
 import pytest
 
 from lahja import (
+    ConnectionConfig,
     Endpoint,
-    EventBus,
 )
 
 EndpointPair = Tuple[Endpoint, Endpoint]
 EndpointTriplet = Tuple[Endpoint, Endpoint, Endpoint]
 
 
+def generate_unique_name() -> str:
+    # We use unique names to avoid clashing of IPC pipes
+    return str(uuid.uuid4())
+
+
 @pytest.fixture(scope='function')
 async def endpoint(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[Endpoint, None]:
-    bus = EventBus()
-    endpoint = bus.create_endpoint('test')
-    bus.start(event_loop)
-    await endpoint.connect(event_loop)
+
+    endpoint = Endpoint()
+    await endpoint.connect(ConnectionConfig.from_name(generate_unique_name()), event_loop)
+    # We need to connect to our own Endpoint if we care about receiving
+    # the events we broadcast. Many tests use the same Endpoint for
+    # broadcasting and receiving which is a valid use case so we hook it up
+    await endpoint.connect_to_endpoints(
+        ConnectionConfig.from_name(endpoint.name),
+    )
     try:
         yield endpoint
     finally:
         endpoint.stop()
-        bus.stop()
 
 
 @pytest.fixture(scope='function')
 async def pair_of_endpoints(event_loop: asyncio.AbstractEventLoop
                             ) -> AsyncGenerator[EndpointPair, None]:
 
-    bus = EventBus()
-    endpoint1 = bus.create_endpoint('e1')
-    endpoint2 = bus.create_endpoint('e2')
-    bus.start(event_loop)
-    await endpoint1.connect(event_loop)
-    await endpoint2.connect(event_loop)
+    endpoint1 = Endpoint()
+    endpoint2 = Endpoint()
+    await endpoint1.connect(ConnectionConfig.from_name(generate_unique_name()), event_loop)
+    await endpoint2.connect(ConnectionConfig.from_name(generate_unique_name()), event_loop)
+    await endpoint1.connect_to_endpoints(
+        ConnectionConfig.from_name(endpoint2.name),
+    )
+    await endpoint2.connect_to_endpoints(
+        ConnectionConfig.from_name(endpoint1.name),
+    )
     try:
         yield endpoint1, endpoint2
     finally:
         endpoint1.stop()
         endpoint2.stop()
-        bus.stop()
 
 
 @pytest.fixture(scope="function")
 async def triplet_of_endpoints(event_loop: asyncio.AbstractEventLoop
                                ) -> AsyncGenerator[EndpointTriplet, None]:
 
-    bus = EventBus()
-    endpoint1 = bus.create_endpoint("e1")
-    endpoint2 = bus.create_endpoint("e2")
-    endpoint3 = bus.create_endpoint("e3")
-    bus.start(event_loop)
-    await endpoint1.connect(event_loop)
-    await endpoint2.connect(event_loop)
-    await endpoint3.connect(event_loop)
+    endpoint1 = Endpoint()
+    endpoint2 = Endpoint()
+    endpoint3 = Endpoint()
+    await endpoint1.connect(ConnectionConfig.from_name(generate_unique_name()), event_loop)
+    await endpoint2.connect(ConnectionConfig.from_name(generate_unique_name()), event_loop)
+    await endpoint3.connect(ConnectionConfig.from_name(generate_unique_name()), event_loop)
+    await endpoint1.connect_to_endpoints(
+        ConnectionConfig.from_name(endpoint2.name),
+        ConnectionConfig.from_name(endpoint3.name),
+    )
+
+    await endpoint2.connect_to_endpoints(
+        ConnectionConfig.from_name(endpoint1.name),
+        ConnectionConfig.from_name(endpoint3.name),
+    )
+    await endpoint3.connect_to_endpoints(
+        ConnectionConfig.from_name(endpoint1.name),
+        ConnectionConfig.from_name(endpoint2.name),
+    )
+
     try:
         yield endpoint1, endpoint2, endpoint3
     finally:
         endpoint1.stop()
         endpoint2.stop()
         endpoint3.stop()
-        bus.stop()

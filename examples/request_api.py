@@ -4,10 +4,10 @@ import time
 
 from lahja import (
     Endpoint,
-    EventBus,
     BaseEvent,
     BaseRequestResponseEvent,
     BroadcastConfig,
+    ConnectionConfig,
 )
 
 
@@ -26,9 +26,14 @@ class GetSomethingRequest(BaseRequestResponseEvent[DeliverSomethingResponse]):
 
 
 # Base functions for first process
-def run_proc1(endpoint):
+def run_proc1():
     loop = asyncio.get_event_loop()
-    endpoint.connect_no_wait()
+    endpoint = Endpoint()
+    endpoint.connect_no_wait(ConnectionConfig.from_name('e1'))
+    endpoint.connect_to_endpoints_blocking(
+        ConnectionConfig.from_name('e2'),
+    )
+    print("subscribing")
     # Listen for `GetSomethingRequest`'s
     endpoint.subscribe(GetSomethingRequest, lambda event:
         # Send a response back to *only* who made that request
@@ -36,11 +41,15 @@ def run_proc1(endpoint):
     )
     loop.run_forever()
 
-# Base functions for second process
-def run_proc2(endpoint):
-    loop = asyncio.get_event_loop()
-    endpoint.connect_no_wait()
 
+# Base functions for second process
+def run_proc2():
+    endpoint = Endpoint()
+    loop = asyncio.get_event_loop()
+    endpoint.connect_no_wait(ConnectionConfig.from_name('e2'))
+    endpoint.connect_to_endpoints_blocking(
+        ConnectionConfig.from_name('e1'),
+    )
     loop.run_until_complete(proc2_worker(endpoint))
 
 async def proc2_worker(endpoint):
@@ -50,19 +59,12 @@ async def proc2_worker(endpoint):
         print(f"Got answer: {result.payload}")
 
 if __name__ == "__main__":
-    # Configure and start event bus
 
-    ctx = multiprocessing.get_context('spawn')
-    event_bus = EventBus(ctx)
+    multiprocessing.set_start_method('spawn')
 
-    e1 = event_bus.create_endpoint('e1')
-    e2 = event_bus.create_endpoint('e2')
-    event_bus.start()
-
-    # Start two processes and pass in event bus endpoints
-    p1 = ctx.Process(target=run_proc1, args=(e1,))
+    p1 = multiprocessing.Process(target=run_proc1)
     p1.start()
 
-    p2 = ctx.Process(target=run_proc2, args=(e2,))
+    p2 = multiprocessing.Process(target=run_proc2)
     p2.start()
     asyncio.get_event_loop().run_forever()

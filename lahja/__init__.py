@@ -1,8 +1,6 @@
-from .eventbus import (  # noqa: F401
-    EventBus,
-)
 from .endpoint import (  # noqa: F401
-    Endpoint
+    Endpoint,
+    ConnectionConfig,
 )
 from .exceptions import (  # noqa: F401
     UnexpectedResponse,

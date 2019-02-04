@@ -5,7 +5,8 @@ import os
 import signal
 
 from lahja import (
-    EventBus,
+    ConnectionConfig,
+    Endpoint,
 )
 
 from lahja.tools.benchmark.constants import (
@@ -21,6 +22,10 @@ from lahja.tools.benchmark.process import (
 )
 from lahja.tools.benchmark.typing import (
     ShutdownEvent,
+)
+from lahja.tools.benchmark.utils.config import (
+    create_consumer_endpoint_configs,
+    create_consumer_endpoint_name,
 )
 
 
@@ -41,16 +46,14 @@ if __name__ == "__main__":
     # This might change with Python 3.8 (See https://bugs.python.org/issue22087#msg318140)
     multiprocessing.set_start_method('spawn')
 
-    # Configure and start event bus
-    event_bus = EventBus()
-    root = event_bus.create_endpoint(ROOT_ENDPOINT)
-    root.connect_no_wait()
+    consumer_endpoint_configs = create_consumer_endpoint_configs(args.num_processes)
 
-    event_bus.start()
+    root = Endpoint()
+    root.connect_no_wait(ConnectionConfig.from_name(ROOT_ENDPOINT))
 
     # In this benchmark, this is the only process that is flooding events
     driver_config = DriverProcessConfig(
-        event_bus=event_bus.create_endpoint('driver_1'),
+        connected_endpoints=consumer_endpoint_configs,
         num_events=args.num_events,
         throttle=args.throttle,
         payload_bytes=args.payload_bytes,
@@ -62,7 +65,6 @@ if __name__ == "__main__":
     # why it was moved into a dedicated process. Notice that this will slightly skew results
     # as the reporter process will also receive events which we don't account for
     reporting_config = ReportingProcessConfig(
-        event_bus=event_bus.create_endpoint(REPORTER_ENDPOINT),
         num_events=args.num_events,
         num_processes=args.num_processes,
         throttle=args.throttle,
@@ -72,20 +74,15 @@ if __name__ == "__main__":
 
     for n in range(args.num_processes):
         consumer_process = ConsumerProcess(
+            create_consumer_endpoint_name(n),
             args.num_events,
-            event_bus.create_endpoint(f'consumer_{n}')
         )
         consumer_process.start()
 
     async def shutdown():
         await root.wait_for(ShutdownEvent)
         root.stop()
-        event_bus.stop()
         asyncio.get_event_loop().stop()
-        # Not entirely sure why we need to send a SIGTERM because all processes have shutdown
-        # at this point and the main process should only block on this method which we have
-        # obviously reached at this point.
-        os.kill(os.getpid(), signal.SIGTERM)
 
     reporter.start()
     driver.start()
