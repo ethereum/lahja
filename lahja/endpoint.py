@@ -1,27 +1,32 @@
 import asyncio
-from concurrent.futures.thread import (
-    ThreadPoolExecutor,
-)
 import functools
-import multiprocessing
+from multiprocessing.managers import (  # type: ignore # Typeshed definition is lacking `BaseProxy`
+    BaseManager,
+    BaseProxy,
+)
+import pathlib
+import threading
 from typing import (  # noqa: F401
     Any,
     AsyncGenerator,
     Callable,
     Dict,
+    Iterable,
     List,
+    NamedTuple,
     Optional,
+    Tuple,
     Type,
     TypeVar,
     cast,
 )
 import uuid
 
-from .async_util import (
-    async_get,
+from ._utils import (
+    wait_for_path,
+    wait_for_path_blocking,
 )
 from .exceptions import (
-    NoConnection,
     UnexpectedResponse,
 )
 from .misc import (
@@ -33,51 +38,87 @@ from .misc import (
 )
 
 
+class ConnectionConfig(NamedTuple):
+    """
+    Configuration class needed to establish :class:`~lahja.endpoint.Endpoint` connections.
+    """
+    name: str
+    path: pathlib.Path
+
+    @staticmethod
+    def from_name(name: str) -> 'ConnectionConfig':
+        return ConnectionConfig(name=name, path=pathlib.Path(f"{name}.ipc"))
+
+
+class EndpointConnector:
+    """
+    Expose the receiving queue of an :class:`~lahja.endpoint.Endpoint` so that any other
+    :class:`~lahja.endpoint.Endpoint` that wants to push events into this
+    :class:`~lahja.endpoint.Endpoint` can do so via the
+    :class:`~lahja.endpoint.ProxyEndpointConnector`.
+    """
+
+    def __init__(self, endpoint: 'Endpoint') -> None:
+        self._endpoint = endpoint
+
+    def put_nowait(self, item_and_config: Tuple[BaseEvent, Optional[BroadcastConfig]]) -> None:
+        loop = self._endpoint._loop
+        # We need to wrap this in `call_soon_threadsafe` since otherwise, the event loop
+        # won't pick it up until some other task moves the loop forward
+        loop.call_soon_threadsafe(self._endpoint._receiving_queue.put_nowait, item_and_config)
+
+
+class ProxyEndpointConnector(BaseProxy):  # type: ignore # TypeShed is missing BaseProxy
+    """
+    Proxy that connects to an :class:`~lahja.endpoint.EndpointConnector`
+    """
+
+    def put_nowait(self, item_and_config: Tuple[BaseEvent, Optional[BroadcastConfig]]) -> None:
+        self._callmethod('put_nowait', (item_and_config,))
+
+
+def get_connector_manager() -> Type[BaseManager]:
+    class ConnectorManager(BaseManager):
+        pass
+
+    return ConnectorManager
+
+
 class Endpoint:
+    """
+    The :class:`~lahja.endpoint.Endpoint` enables communication between different processes
+    as well as within a single process via various event-driven APIs.
+    """
 
-    def __init__(self,
-                 name: str,
-                 sending_queue: multiprocessing.Queue,
-                 receiving_queue: multiprocessing.Queue) -> None:
+    _name: str
+    _ipc_path: pathlib.Path
 
-        self.name = name
-        self._sending_queue = sending_queue
-        self._receiving_queue = receiving_queue
+    _receiving_queue: asyncio.Queue
+    _receiving_loop_running: asyncio.Event
+
+    _internal_queue: asyncio.Queue
+    _internal_loop_running: asyncio.Event
+
+    _loop: asyncio.AbstractEventLoop
+
+    def __init__(self) -> None:
+        self._connected_endpoints: Dict[str, BaseProxy] = {}
         self._futures: Dict[Optional[str], asyncio.Future] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
-        self._executor: Optional[ThreadPoolExecutor] = None
         self._running = False
-        self._optional_internal_queue: Optional[asyncio.Queue] = None
-        self._optional_loop: Optional[asyncio.AbstractEventLoop] = None
-        self._optional_receiving_loop_running: Optional[asyncio.Event] = None
-        self._optional_internal_loop_running: Optional[asyncio.Event] = None
 
     @property
-    def _loop(self) -> asyncio.AbstractEventLoop:
-        if self._optional_loop is None:
-            raise NoConnection("Need to connect first")
-        return self._optional_loop
+    def ipc_path(self) -> pathlib.Path:
+        return self._ipc_path
 
     @property
-    def _internal_queue(self) -> asyncio.Queue:
-        if self._optional_internal_queue is None:
-            raise NoConnection("Need to connect first")
-        return self._optional_internal_queue
+    def name(self) -> str:
+        return self._name
 
-    @property
-    def _receiving_loop_running(self) -> asyncio.Event:
-        if self._optional_receiving_loop_running is None:
-            raise NoConnection("Need to connect first")
-        return self._optional_receiving_loop_running
-
-    @property
-    def _internal_loop_running(self) -> asyncio.Event:
-        if self._optional_internal_loop_running is None:
-            raise NoConnection("Need to connect first")
-        return self._optional_internal_loop_running
-
-    def connect_no_wait(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    def connect_no_wait(self,
+                        connection_config: ConnectionConfig,
+                        loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         """
         Connect the :class:`~lahja.endpoint.Endpoint` to the :class:`~lahja.eventbus.EventBus`
         instance that created this endpoint.
@@ -85,10 +126,14 @@ class Endpoint:
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        self._optional_loop = loop
-        self._optional_internal_loop_running = asyncio.Event(loop=self._loop)
-        self._optional_receiving_loop_running = asyncio.Event(loop=self._loop)
-        self._optional_internal_queue = asyncio.Queue()
+        self._name = connection_config.name
+        self._ipc_path = connection_config.path
+        self._create_external_api(self._ipc_path)
+        self._loop = loop
+        self._internal_loop_running = asyncio.Event(loop=self._loop)
+        self._receiving_loop_running = asyncio.Event(loop=self._loop)
+        self._internal_queue = asyncio.Queue(loop=self._loop)
+        self._receiving_queue = asyncio.Queue(loop=self._loop)
 
         # Using `gather` (over e.g. `wait` or plain `ensure_future`) ensures that the inner futures
         # are automatically cancelled as soon as the parent task is cancelled
@@ -100,8 +145,11 @@ class Endpoint:
 
         self._running = True
 
-    async def connect(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
-        self.connect_no_wait(loop)
+    async def connect(self,
+                      connection_config: ConnectionConfig,
+                      loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+
+        self.connect_no_wait(connection_config, loop)
         await self.wait_for_connection()
 
     async def wait_for_connection(self) -> None:
@@ -116,10 +164,8 @@ class Endpoint:
 
     async def _connect_receiving_queue(self) -> None:
         self._receiving_loop_running.set()
-        self._executor = ThreadPoolExecutor()
         while self._running:
-            (item, config) = await async_get(self._receiving_queue, executor=self._executor)
-
+            (item, config) = await self._receiving_queue.get()
             self._process_item(item, config)
 
     async def _connect_internal_queue(self) -> None:
@@ -128,6 +174,65 @@ class Endpoint:
             (item, config) = await self._internal_queue.get()
 
             self._process_item(item, config)
+
+    def _create_external_api(self, ipc_path: pathlib.Path) -> None:
+
+        receiver = EndpointConnector(self)
+
+        ConnectorManager = get_connector_manager()
+
+        ConnectorManager.register('get_connector', callable=lambda: receiver)  # type: ignore
+
+        manager = ConnectorManager(address=str(ipc_path))  # type: ignore
+        server = manager.get_server()   # type: ignore
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    def connect_to_endpoints_blocking(self, *endpoints: ConnectionConfig, timeout: int=30) -> None:
+        """
+        Connect to the given endpoints and block until the connection to every endpoint is
+        established. Raises a ``TimeoutError`` if connections do not become available within
+        ``timeout`` seconds (default 30 seconds).
+        """
+        for endpoint in endpoints:
+            wait_for_path_blocking(endpoint.path, timeout)
+            self._connect_to_endpoint(endpoint)
+
+    async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
+        """
+        Asynchronously connect to the given endpoints and await until all connections are
+        established.
+        """
+
+        await asyncio.gather(
+            *(self._await_connect_to_endpoint(endpoint) for endpoint in endpoints),
+            loop=self._loop
+        )
+
+    def connect_to_endpoints_nowait(self, *endpoints: ConnectionConfig) -> None:
+        """
+        Connect to the given endpoints as soon as they become available but do not block.
+        """
+        for endpoint in endpoints:
+            asyncio.ensure_future(self._await_connect_to_endpoint(endpoint))
+
+    async def _await_connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
+        await wait_for_path(endpoint.path)
+        self._connect_to_endpoint(endpoint)
+
+    def _connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
+        ConnectorManager = get_connector_manager()
+
+        ConnectorManager.register(  # type: ignore
+            'get_connector',
+            proxytype=ProxyEndpointConnector
+        )
+
+        manager = ConnectorManager(address=str(endpoint.path))  # type: ignore
+        manager.connect()
+        self._connected_endpoints[endpoint.name] = manager.get_connector()  # type: ignore
+
+    def is_connected_to(self, endpoint_name: str) -> bool:
+        return endpoint_name in self._connected_endpoints
 
     def _process_item(self, item: BaseEvent, config: BroadcastConfig) -> None:
         if item is TRANSPARENT_EVENT:
@@ -168,9 +273,6 @@ class Endpoint:
         self._running = False
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
         self._internal_queue.put_nowait((TRANSPARENT_EVENT, None))
-        if self._executor is not None:
-            self._executor.shutdown()
-        self._receiving_queue.close()
 
     def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         """
@@ -185,7 +287,11 @@ class Endpoint:
             # and are directly put into the local receiving queue instead.
             self._internal_queue.put_nowait((item, config))
         else:
-            self._sending_queue.put_nowait((item, config))
+            # Broadcast to every connected Endpoint that is allowed to receive the event
+            for name, connector in self._connected_endpoints.items():
+                verboten = config is not None and not config.allowed_to_receive(name)
+                if not verboten:
+                    connector.put_nowait((item, config))
 
     TResponse = TypeVar('TResponse', bound=BaseEvent)
 
@@ -205,7 +311,7 @@ class Endpoint:
         future: asyncio.Future = asyncio.Future(loop=self._loop)
         self._futures[item._id] = future
 
-        self._sending_queue.put_nowait((item, config))
+        self.broadcast(item, config)
 
         future.add_done_callback(functools.partial(self._remove_cancelled_future, item._id))
 

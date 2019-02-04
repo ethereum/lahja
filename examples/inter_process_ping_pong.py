@@ -3,9 +3,9 @@ import multiprocessing
 import time
 
 from lahja import (
+    BaseEvent,
     Endpoint,
-    EventBus,
-    BaseEvent
+    ConnectionConfig,
 )
 
 
@@ -23,9 +23,13 @@ class SecondThingHappened(BaseExampleEvent):
     pass
 
 # Base functions for first process
-def run_proc1(endpoint):
+def run_proc1():
     loop = asyncio.get_event_loop()
-    endpoint.connect_no_wait()
+    endpoint = Endpoint()
+    endpoint.connect_no_wait(ConnectionConfig.from_name('e1'))
+    endpoint.connect_to_endpoints_blocking(
+        ConnectionConfig.from_name('e2')
+    )
     endpoint.subscribe(SecondThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc1: ", event.payload)
     )
@@ -45,9 +49,13 @@ async def proc1_worker(endpoint):
         await asyncio.sleep(1)
 
 # Base functions for second process
-def run_proc2(endpoint):
+def run_proc2():
     loop = asyncio.get_event_loop()
-    endpoint.connect_no_wait()
+    endpoint = Endpoint()
+    endpoint.connect_no_wait(ConnectionConfig.from_name('e2'))
+    endpoint.connect_to_endpoints_blocking(
+        ConnectionConfig.from_name('e1')
+    )
     endpoint.subscribe(FirstThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc2:", event.payload)
     )
@@ -75,15 +83,10 @@ def is_nth_second(interval):
     return int(time.time()) % interval is 0
 
 if __name__ == "__main__":
-    # Configure and start event bus
-    event_bus = EventBus()
-    e1 = event_bus.create_endpoint('e1')
-    e2 = event_bus.create_endpoint('e2')
-    event_bus.start()
-
+    multiprocessing.set_start_method('spawn')
     # Start two processes and pass in event bus endpoints
-    p1 = multiprocessing.Process(target=run_proc1, args=(e1,))
+    p1 = multiprocessing.Process(target=run_proc1)
     p1.start()
 
-    p2 = multiprocessing.Process(target=run_proc2, args=(e2,))
+    p2 = multiprocessing.Process(target=run_proc2)
     p2.start()

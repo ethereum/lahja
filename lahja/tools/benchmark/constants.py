@@ -1,2 +1,3 @@
+DRIVER_ENDPOINT = "driver"
 REPORTER_ENDPOINT = "reporter"
 ROOT_ENDPOINT = "root"
