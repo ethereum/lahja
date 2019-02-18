@@ -1,6 +1,11 @@
 Release Notes
 =============
 
+v0.11.0
+-------
+
+- Performance: Connect endpoints directly without central coordinator (BREAKING CHANGE)
+
 v0.10.2
 -------
 
