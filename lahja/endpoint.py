@@ -233,7 +233,7 @@ class Endpoint:
         self._throw_if_already_connected(*endpoints)
         for endpoint in endpoints:
             wait_for_path_blocking(endpoint.path, timeout)
-            self._connect_to_endpoint(endpoint)
+            self._connect_if_not_already_connected(endpoint)
 
     async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
         """
@@ -255,13 +255,16 @@ class Endpoint:
 
     async def _await_connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
         await wait_for_path(endpoint.path)
-        self._connect_to_endpoint(endpoint)
+        self._connect_if_not_already_connected(endpoint)
 
-    def _connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
-        # We do this check higher up the call stack as well but redo it here
-        # to catch cases that would otherwise go unnoticed. When we catch it here,
-        # it may mean we catch it in a background task, so catching it earlier is better.
-        self._throw_if_already_connected(endpoint)
+    def _connect_if_not_already_connected(self, endpoint: ConnectionConfig) -> None:
+
+        if endpoint.name in self._connected_endpoints.keys():
+            self._logger.warning(
+                "Tried to connect to %s but we are already connected to that Endpoint",
+                endpoint.name
+            )
+            return
 
         class ConnectorManager(BaseManager):
             pass
