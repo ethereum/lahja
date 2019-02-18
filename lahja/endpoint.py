@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import logging
 from multiprocessing.managers import (  # type: ignore # Typeshed definition is lacking `BaseProxy`
     BaseManager,
     BaseProxy,
@@ -15,6 +16,7 @@ from typing import (  # noqa: F401
     List,
     NamedTuple,
     Optional,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -27,6 +29,8 @@ from ._utils import (
     wait_for_path_blocking,
 )
 from .exceptions import (
+    ConnectionAttemptRejected,
+    NotServing,
     UnexpectedResponse,
 )
 from .misc import (
@@ -45,9 +49,14 @@ class ConnectionConfig(NamedTuple):
     name: str
     path: pathlib.Path
 
-    @staticmethod
-    def from_name(name: str) -> 'ConnectionConfig':
-        return ConnectionConfig(name=name, path=pathlib.Path(f"{name}.ipc"))
+    @classmethod
+    def from_name(cls, name: str, base_path: Optional[pathlib.Path]=None) -> 'ConnectionConfig':
+        if base_path is None:
+            return cls(name=name, path=pathlib.Path(f"{name}.ipc"))
+        elif base_path.is_dir():
+            return ConnectionConfig(name=name, path=base_path / f"{name}.ipc")
+        else:
+            raise TypeError("Provided `base_path` must be a directory")
 
 
 class EndpointConnector:
@@ -63,6 +72,11 @@ class EndpointConnector:
 
     def put_nowait(self, item_and_config: Tuple[BaseEvent, Optional[BroadcastConfig]]) -> None:
         loop = self._endpoint._loop
+        if not self._endpoint._running:
+            self._endpoint._logger.warning(
+                "Attempted to push into %s while it isn't running.",
+                self._endpoint.name
+            )
         # We need to wrap this in `call_soon_threadsafe` since otherwise, the event loop
         # won't pick it up until some other task moves the loop forward
         loop.call_soon_threadsafe(self._endpoint._receiving_queue.put_nowait, item_and_config)
@@ -77,13 +91,6 @@ class ProxyEndpointConnector(BaseProxy):  # type: ignore # TypeShed is missing B
         self._callmethod('put_nowait', (item_and_config,))
 
 
-def get_connector_manager() -> Type[BaseManager]:
-    class ConnectorManager(BaseManager):
-        pass
-
-    return ConnectorManager
-
-
 class Endpoint:
     """
     The :class:`~lahja.endpoint.Endpoint` enables communication between different processes
@@ -92,6 +99,7 @@ class Endpoint:
 
     _name: str
     _ipc_path: pathlib.Path
+    _logger: logging.Logger
 
     _receiving_queue: asyncio.Queue
     _receiving_loop_running: asyncio.Event
@@ -113,54 +121,82 @@ class Endpoint:
         return self._ipc_path
 
     @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is None:
+            raise NotServing("Endpoint isn't serving yet. Call `start_serving` first.")
+
+        return self._loop
+
+    @property
     def name(self) -> str:
         return self._name
 
-    def connect_no_wait(self,
-                        connection_config: ConnectionConfig,
-                        loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    def start_serving_nowait(self,
+                             connection_config: ConnectionConfig,
+                             loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         """
-        Connect the :class:`~lahja.endpoint.Endpoint` to the :class:`~lahja.eventbus.EventBus`
-        instance that created this endpoint.
+        Start serving this :class:`~lahja.endpoint.Endpoint` so that it can receive events. It is
+        not guaranteed that the :class:`~lahja.endpoint.Endpoint` is fully ready after this method
+        returns. Use :meth:`~lahja.endpoint.Endpoint.start_serving` or combine with
+        :meth:`~lahja.endpoint.Endpoint.wait_until_serving`
         """
         if loop is None:
             loop = asyncio.get_event_loop()
 
         self._name = connection_config.name
         self._ipc_path = connection_config.path
+        self._logger = logging.Logger(f"lahja.endpoint.Endpoint#{self._name}")
         self._create_external_api(self._ipc_path)
         self._loop = loop
-        self._internal_loop_running = asyncio.Event(loop=self._loop)
-        self._receiving_loop_running = asyncio.Event(loop=self._loop)
-        self._internal_queue = asyncio.Queue(loop=self._loop)
-        self._receiving_queue = asyncio.Queue(loop=self._loop)
+        self._internal_loop_running = asyncio.Event(loop=self.event_loop)
+        self._receiving_loop_running = asyncio.Event(loop=self.event_loop)
+        self._internal_queue = asyncio.Queue(loop=self.event_loop)
+        self._receiving_queue = asyncio.Queue(loop=self.event_loop)
 
         # Using `gather` (over e.g. `wait` or plain `ensure_future`) ensures that the inner futures
         # are automatically cancelled as soon as the parent task is cancelled
         asyncio.gather(
-            asyncio.ensure_future(self._connect_receiving_queue(), loop=self._loop),
-            asyncio.ensure_future(self._connect_internal_queue(), loop=self._loop),
-            loop=self._loop
+            asyncio.ensure_future(self._connect_receiving_queue(), loop=self.event_loop),
+            asyncio.ensure_future(self._connect_internal_queue(), loop=self.event_loop),
+            loop=self.event_loop
         )
 
         self._running = True
 
-    async def connect(self,
-                      connection_config: ConnectionConfig,
-                      loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
-
-        self.connect_no_wait(connection_config, loop)
-        await self.wait_for_connection()
-
-    async def wait_for_connection(self) -> None:
+    async def start_serving(self,
+                            connection_config: ConnectionConfig,
+                            loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         """
-        Wait until the ``Endpoint`` has established a connection to the ``EventBus``
+        Start serving this :class:`~lahja.endpoint.Endpoint` so that it can receive events. Await
+        until the :class:`~lahja.endpoint.Endpoint` is ready.
+        """
+        self.start_serving_nowait(connection_config, loop)
+        await self.wait_until_serving()
+
+    async def wait_until_serving(self) -> None:
+        """
+        Await until the ``Endpoint`` is ready to receive events.
         """
         await asyncio.gather(
             self._receiving_loop_running.wait(),
             self._internal_loop_running.wait(),
-            loop=self._loop
+            loop=self.event_loop
         )
+
+    def _throw_if_already_connected(self, *endpoints: ConnectionConfig) -> None:
+        seen: Set[str] = set()
+
+        for config in endpoints:
+            if config.name in seen:
+                raise ConnectionAttemptRejected(
+                    f"Trying to connect to {config.name} twice. Names must be uniqe."
+                )
+            elif config.name in self._connected_endpoints.keys():
+                raise ConnectionAttemptRejected(
+                    f"Already connected to {config.name} at {config.path}. Names must be unique."
+                )
+            else:
+                seen.add(config.name)
 
     async def _connect_receiving_queue(self) -> None:
         self._receiving_loop_running.set()
@@ -179,7 +215,8 @@ class Endpoint:
 
         receiver = EndpointConnector(self)
 
-        ConnectorManager = get_connector_manager()
+        class ConnectorManager(BaseManager):
+            pass
 
         ConnectorManager.register('get_connector', callable=lambda: receiver)  # type: ignore
 
@@ -193,25 +230,26 @@ class Endpoint:
         established. Raises a ``TimeoutError`` if connections do not become available within
         ``timeout`` seconds (default 30 seconds).
         """
+        self._throw_if_already_connected(*endpoints)
         for endpoint in endpoints:
             wait_for_path_blocking(endpoint.path, timeout)
             self._connect_to_endpoint(endpoint)
 
     async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
         """
-        Asynchronously connect to the given endpoints and await until all connections are
-        established.
+        Connect to the given endpoints and await until all connections are established.
         """
-
+        self._throw_if_already_connected(*endpoints)
         await asyncio.gather(
             *(self._await_connect_to_endpoint(endpoint) for endpoint in endpoints),
-            loop=self._loop
+            loop=self.event_loop
         )
 
     def connect_to_endpoints_nowait(self, *endpoints: ConnectionConfig) -> None:
         """
         Connect to the given endpoints as soon as they become available but do not block.
         """
+        self._throw_if_already_connected(*endpoints)
         for endpoint in endpoints:
             asyncio.ensure_future(self._await_connect_to_endpoint(endpoint))
 
@@ -220,7 +258,13 @@ class Endpoint:
         self._connect_to_endpoint(endpoint)
 
     def _connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
-        ConnectorManager = get_connector_manager()
+        # We do this check higher up the call stack as well but redo it here
+        # to catch cases that would otherwise go unnoticed. When we catch it here,
+        # it may mean we catch it in a background task, so catching it earlier is better.
+        self._throw_if_already_connected(endpoint)
+
+        class ConnectorManager(BaseManager):
+            pass
 
         ConnectorManager.register(  # type: ignore
             'get_connector',
@@ -264,8 +308,7 @@ class Endpoint:
 
     def stop(self) -> None:
         """
-        Stop the :class:`~lahja.endpoint.Endpoint` from receiving further events, effectively
-        disconnecting it from the to the :class:`~lahja.eventbus.EventBus` that created it.
+        Stop the :class:`~lahja.endpoint.Endpoint` from receiving further events.
         """
         if not self._running:
             return
@@ -289,8 +332,8 @@ class Endpoint:
         else:
             # Broadcast to every connected Endpoint that is allowed to receive the event
             for name, connector in self._connected_endpoints.items():
-                verboten = config is not None and not config.allowed_to_receive(name)
-                if not verboten:
+                allowed = (config is None) or config.allowed_to_receive(name)
+                if allowed:
                     connector.put_nowait((item, config))
 
     TResponse = TypeVar('TResponse', bound=BaseEvent)
@@ -308,7 +351,7 @@ class Endpoint:
         item._origin = self.name
         item._id = str(uuid.uuid4())
 
-        future: asyncio.Future = asyncio.Future(loop=self._loop)
+        future: asyncio.Future = asyncio.Future(loop=self.event_loop)
         self._futures[item._id] = future
 
         self.broadcast(item, config)

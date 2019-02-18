@@ -29,7 +29,7 @@ class GetSomethingRequest(BaseRequestResponseEvent[DeliverSomethingResponse]):
 def run_proc1():
     loop = asyncio.get_event_loop()
     endpoint = Endpoint()
-    endpoint.connect_no_wait(ConnectionConfig.from_name('e1'))
+    endpoint.start_serving_nowait(ConnectionConfig.from_name('e1'))
     endpoint.connect_to_endpoints_blocking(
         ConnectionConfig.from_name('e2'),
     )
@@ -46,7 +46,7 @@ def run_proc1():
 def run_proc2():
     endpoint = Endpoint()
     loop = asyncio.get_event_loop()
-    endpoint.connect_no_wait(ConnectionConfig.from_name('e2'))
+    endpoint.start_serving_nowait(ConnectionConfig.from_name('e2'))
     endpoint.connect_to_endpoints_blocking(
         ConnectionConfig.from_name('e1'),
     )

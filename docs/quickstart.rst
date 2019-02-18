@@ -5,12 +5,12 @@ Quickstart
 Install the library
 ~~~~~~~~~~~~~~~~~~~
 
-```sh
-pip install lahja
-```
+.. code:: sh
+
+   pip install lahja
 
 
-Import ``EventBus``, ``Endpoint`` and ``BaseEvent``
+Import ``Endpoint`` and ``BaseEvent``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. literalinclude:: ../examples/inter_process_ping_pong.py
@@ -58,21 +58,12 @@ Setup second process to receive and broadcast events
    :pyobject: proc2_worker
 
 
-Setup ``EventBus`` and ``Endpoint``'s
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Start both processes
+~~~~~~~~~~~~~~~~~~~~
 
 .. literalinclude:: ../examples/inter_process_ping_pong.py
    :language: python
-   :start-after: # Configure and start event bus
-   :end-before: # Start two processes and pass in event bus endpoints
-
-
-Start two process and pass in endpoints
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. literalinclude:: ../examples/inter_process_ping_pong.py
-   :language: python
-   :start-after: # Start two processes and pass in event bus endpoints
+   :start-after: # Start two processes
 
 
 Running the examples

@@ -2,17 +2,17 @@ Release Notes
 =============
 
 v0.10.2
-------
+-------
 
 - Fix issue that can crash Endpoint
 
 v0.10.1
-------
+-------
 
 - Fix issue that can crash Endpoint
 
 v0.10.0
-------
+-------
 
 - Make `request` API accept a `BroadcastConfig`
 - Add benchmarks

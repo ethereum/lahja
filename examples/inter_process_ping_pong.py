@@ -26,7 +26,7 @@ class SecondThingHappened(BaseExampleEvent):
 def run_proc1():
     loop = asyncio.get_event_loop()
     endpoint = Endpoint()
-    endpoint.connect_no_wait(ConnectionConfig.from_name('e1'))
+    endpoint.start_serving_nowait(ConnectionConfig.from_name('e1'))
     endpoint.connect_to_endpoints_blocking(
         ConnectionConfig.from_name('e2')
     )
@@ -52,7 +52,7 @@ async def proc1_worker(endpoint):
 def run_proc2():
     loop = asyncio.get_event_loop()
     endpoint = Endpoint()
-    endpoint.connect_no_wait(ConnectionConfig.from_name('e2'))
+    endpoint.start_serving_nowait(ConnectionConfig.from_name('e2'))
     endpoint.connect_to_endpoints_blocking(
         ConnectionConfig.from_name('e1')
     )
@@ -84,7 +84,7 @@ def is_nth_second(interval):
 
 if __name__ == "__main__":
     multiprocessing.set_start_method('spawn')
-    # Start two processes and pass in event bus endpoints
+    # Start two processes
     p1 = multiprocessing.Process(target=run_proc1)
     p1.start()
 

@@ -49,7 +49,7 @@ if __name__ == "__main__":
     consumer_endpoint_configs = create_consumer_endpoint_configs(args.num_processes)
 
     root = Endpoint()
-    root.connect_no_wait(ConnectionConfig.from_name(ROOT_ENDPOINT))
+    root.start_serving_nowait(ConnectionConfig.from_name(ROOT_ENDPOINT))
 
     # In this benchmark, this is the only process that is flooding events
     driver_config = DriverProcessConfig(

@@ -15,7 +15,7 @@ def wait_for_path_blocking(path: pathlib.Path, timeout: int=30) -> None:
         else:
             time.sleep(0.05)
 
-    raise TimeoutError("IPC socket file has not appeared in %d seconds!" % timeout)
+    raise TimeoutError(f"IPC socket file {path} has not appeared in {timeout} seconds")
 
 
 async def wait_for_path(path: pathlib.Path) -> None:

@@ -2,23 +2,24 @@ API Docs
 ========
 
 Endpoint
----------------------
+--------
 
 .. automodule:: lahja.endpoint
     :members:
     :undoc-members:
     :show-inheritance:
 
-EventBus
----------------------
 
-.. automodule:: lahja.eventbus
+ConnectionConfig
+----------------
+
+.. autoclass:: lahja.endpoint.ConnectionConfig
     :members:
     :undoc-members:
     :show-inheritance:
 
 Exceptions
------------------------
+----------
 
 .. automodule:: lahja.exceptions
     :members:
