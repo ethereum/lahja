@@ -1,6 +1,11 @@
 Release Notes
 =============
 
+v0.11.1
+-------
+
+- Turn exception that would be raised in a background task into a warning
+
 v0.11.0
 -------
 
