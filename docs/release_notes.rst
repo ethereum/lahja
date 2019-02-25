@@ -1,6 +1,11 @@
 Release Notes
 =============
 
+v0.11.2
+-------
+
+- Properly set up logger
+
 v0.11.1
 -------
 
