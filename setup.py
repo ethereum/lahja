@@ -15,7 +15,7 @@ extras_require = {
     ],
     'lint': [
         "flake8==3.4.1",
-        "isort>=4.2.15,<5",
+        "isort==4.3.4",
         "mypy==0.620",
     ],
     'doc': [
