@@ -73,7 +73,7 @@ class EndpointConnector:
     def put_nowait(self, item_and_config: Tuple[BaseEvent, Optional[BroadcastConfig]]) -> None:
         loop = self._endpoint._loop
         if not self._endpoint._running:
-            self._endpoint._logger.warning(
+            self._endpoint.logger.warning(
                 "Attempted to push into %s while it isn't running.",
                 self._endpoint.name
             )
@@ -99,7 +99,7 @@ class Endpoint:
 
     _name: str
     _ipc_path: pathlib.Path
-    _logger: logging.Logger
+    _logger: Optional[logging.Logger] = None
 
     _receiving_queue: asyncio.Queue
     _receiving_loop_running: asyncio.Event
@@ -114,6 +114,7 @@ class Endpoint:
         self._futures: Dict[Optional[str], asyncio.Future] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
+
         self._running = False
 
     @property
@@ -126,6 +127,13 @@ class Endpoint:
             raise NotServing("Endpoint isn't serving yet. Call `start_serving` first.")
 
         return self._loop
+
+    @property
+    def logger(self) -> logging.Logger:
+        if self._logger is None:
+            self._logger = logging.getLogger('lahja.endpoint.Endpoint')
+
+        return self._logger
 
     @property
     def name(self) -> str:
@@ -145,7 +153,6 @@ class Endpoint:
 
         self._name = connection_config.name
         self._ipc_path = connection_config.path
-        self._logger = logging.Logger(f"lahja.endpoint.Endpoint#{self._name}")
         self._create_external_api(self._ipc_path)
         self._loop = loop
         self._internal_loop_running = asyncio.Event(loop=self.event_loop)
@@ -260,7 +267,7 @@ class Endpoint:
     def _connect_if_not_already_connected(self, endpoint: ConnectionConfig) -> None:
 
         if endpoint.name in self._connected_endpoints.keys():
-            self._logger.warning(
+            self.logger.warning(
                 "Tried to connect to %s but we are already connected to that Endpoint",
                 endpoint.name
             )
