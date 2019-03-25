@@ -58,8 +58,8 @@ setup(
     description="Generic event bus for asynchronous cross-process communication",
     long_description=long_description,
     long_description_content_type='text/markdown',
-    author='The Lahja developers',
-    author_email='christoph.burgdorf@gmail.com',
+    author='The Ethereum Foundation',
+    author_email='snakecharmers@ethereum.org',
     url='https://github.com/ethereum/lahja',
     include_package_data=True,
     install_requires=[
