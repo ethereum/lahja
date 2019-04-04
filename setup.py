@@ -29,6 +29,9 @@ extras_require = {
         "twine",
         "ipython",
     ],
+    'snappy': [
+        "python-snappy>=0.5.3,<1"
+    ]
 }
 
 extras_require['dev'] = (

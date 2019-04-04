@@ -24,6 +24,9 @@ common: &common
         name: install dependencies
         command: pip install --user tox
     - run:
+        name: install libsnappy-dev
+        command: sudo apt install -y libsnappy-dev
+    - run:
         name: run tox
         command: ~/.local/bin/tox -r
     - save_cache:
@@ -42,6 +45,12 @@ jobs:
       - image: circleci/python:3.6
         environment:
           TOXENV: benchmark
+  snappy-benchmark:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: snappy-benchmark
   doctest:
     <<: *common
     docker:
@@ -66,12 +75,27 @@ jobs:
       - image: circleci/python:3.7
         environment:
           TOXENV: py37-core
+  py36-snappy-core:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: py36-snappy-core
+  py37-snappy-core:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7
+        environment:
+          TOXENV: py37-snappy-core
 workflows:
   version: 2
   test:
     jobs:
       - benchmark
+      - snappy-benchmark
       - doctest
       - lint
       - py36-core
       - py37-core
+      - py36-snappy-core
+      - py37-snappy-core
