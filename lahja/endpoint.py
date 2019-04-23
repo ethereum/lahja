@@ -1,9 +1,11 @@
+import abc
 import asyncio
 from asyncio import (
     StreamReader,
     StreamWriter,
 )
 import functools
+import itertools
 import logging
 import pathlib
 import pickle
@@ -16,6 +18,7 @@ from typing import (  # noqa: F401
     Callable,
     Dict,
     List,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -43,7 +46,7 @@ from lahja.base import (
 from .exceptions import (
     ConnectionAttemptRejected,
     NotServing,
-    ReaderAtEof,
+    RemoteDisconnected,
     UnexpectedResponse,
 )
 from .misc import (
@@ -70,8 +73,39 @@ async def wait_for_path(path: pathlib.Path, timeout: int = 2) -> None:
     raise TimeoutError(f"IPC socket file {path} has not appeared in {timeout} seconds")
 
 
-class RemoteEndpoint:
-    logger = logging.getLogger('lahja.endpoint.RemoteEndpoint')
+class Message(abc.ABC):
+    """
+    Base class for all valid message types that an ``Endpoint`` can handle.
+    ``NamedTuple`` breaks multiple inheritance which means, instead of regular subclassing,
+    derived message types need to derive from ``NamedTuple`` directly and call
+    Message.register(DerivedType) in order to allow isinstance(obj, Message) checks.
+    """
+    pass
+
+
+class SubscriptionsUpdated(NamedTuple):
+    subscriptions: Set[Type[BaseEvent]]
+    response_expected: bool
+
+
+class SubscriptionsAck:
+    pass
+
+
+Message.register(Broadcast)
+Message.register(SubscriptionsUpdated)
+Message.register(SubscriptionsAck)
+
+
+# mypy doesn't appreciate the ABCMeta trick
+Msg = Union[Broadcast, SubscriptionsUpdated, SubscriptionsAck]
+
+
+SIZE_MARKER_LENGTH = 4
+
+
+class Connection:
+    logger = logging.getLogger('lahja.endpoint.Connection')
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         self.writer = writer
@@ -79,45 +113,149 @@ class RemoteEndpoint:
         self._drain_lock = asyncio.Lock()
 
     @classmethod
-    async def connect_to(cls, path: str) -> 'RemoteEndpoint':
+    async def connect_to(cls, path: str) -> 'Connection':
         reader, writer = await asyncio.open_unix_connection(path)
         return cls(reader, writer)
 
-    async def send_message(self, message: Broadcast) -> None:
-        await _write_message(self.writer, message)
-        async with self._drain_lock:
-            # Use a lock to serialize drain() calls. Circumvents this bug:
-            # https://bugs.python.org/issue29930
-            await self.writer.drain()
-
-    async def read_message(self) -> Broadcast:
-        if self.reader.at_eof():
-            raise ReaderAtEof()
+    async def send_message(self, message: Msg) -> None:
+        assert isinstance(message, Message)
+        pickled = pickle.dumps(message)
+        size = len(pickled)
 
         try:
-            return await _read_message(self.reader)
-        except asyncio.IncompleteReadError:
-            raise ReaderAtEof()
+            self.writer.write(size.to_bytes(SIZE_MARKER_LENGTH, 'little'))
+            self.writer.write(pickled)
+            async with self._drain_lock:
+                # Use a lock to serialize drain() calls. Circumvents this bug:
+                # https://bugs.python.org/issue29930
+                await self.writer.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            raise RemoteDisconnected()
+
+    async def read_message(self) -> Message:
+        if self.reader.at_eof():
+            raise RemoteDisconnected()
+
+        try:
+            raw_size = await self.reader.readexactly(SIZE_MARKER_LENGTH)
+            size = int.from_bytes(raw_size, 'little')
+            message = await self.reader.readexactly(size)
+            obj = pickle.loads(message)
+            assert isinstance(obj, Message)
+            return obj
+        except (asyncio.IncompleteReadError, BrokenPipeError, ConnectionResetError):
+            raise RemoteDisconnected()
 
 
-SIZE_MARKER_LENGTH = 4
+class InboundConnection:
+    """
+    A local Endpoint might have several ``InboundConnection``s, each of them represents a remote
+    Endpoint which has connected to the given Endpoint and is attempting to send it messages.
+    """
+    def __init__(self, conn: Connection, new_msg_func: Callable[[Broadcast], None]) -> None:
+        self.conn = conn
+        self.new_msg_func = new_msg_func
+
+        self.logger = logging.getLogger('lahja.endpoint.InboundConnection')
+
+        self._notify_lock = asyncio.Lock()
+        self._received_response = asyncio.Condition()
+
+    async def run(self) -> None:
+        while True:
+            try:
+                message = await self.conn.read_message()
+            except RemoteDisconnected:
+                async with self._received_response:
+                    self._received_response.notify_all()
+                return
+
+            if isinstance(message, Broadcast):
+                self.new_msg_func(message)
+            elif isinstance(message, SubscriptionsAck):
+                async with self._received_response:
+                    self._received_response.notify_all()
+            else:
+                self.logger.error(f'received unexpected message: {message}')
+
+    async def notify_subscriptions_updated(self,
+                                           subscriptions: Set[Type[BaseEvent]],
+                                           block: bool = True) -> None:
+        """
+        Alert the ``Endpoint`` which has connected to us that our subscription set has
+        changed. If ``block`` is ``True`` then this function will block until the remote
+        endpoint has acknowledged the new subscription set. If ``block`` is ``False`` then this
+        function will return immediately after the send finishes.
+        """
+        async with self._notify_lock:
+            # The lock ensures only one coroutine can notify this endpoint at any one time
+            # and that no replies are accidentally received by the wrong coroutines.
+            async with self._received_response:
+                try:
+                    await self.conn.send_message(SubscriptionsUpdated(subscriptions, block))
+                except RemoteDisconnected:
+                    return
+                if block:
+                    await self._received_response.wait()
 
 
-async def _read_message(reader: StreamReader) -> Broadcast:
-    raw_size = await reader.readexactly(SIZE_MARKER_LENGTH)
-    size = int.from_bytes(raw_size, 'little')
-    message = await reader.readexactly(size)
-    obj = pickle.loads(message)
-    assert isinstance(obj, Broadcast)
-    return obj
+class OutboundConnection:
+    """
+    The local Endpoint might have several ``OutboundConnection``s, each of them represents a
+    remote ``Endpoint`` which has been connected to. The remote endpoint occasionally sends
+    special message "backwards" to the local endpoint that connected to it.
 
+    Those messages (``SubscriptionsUpdated``) specify which kinds of messages the remote
+    Endpoint is subscribed to. No other message types are allowed to flow "backwards" from
+    an outbound connection and otherwise are dropped.
+    """
+    def __init__(self, name: str, conn: Connection) -> None:
+        self.conn = conn
+        self.name = name
+        self.subscribed_messages: Set[Type[BaseEvent]] = set()
 
-async def _write_message(writer: StreamWriter, message: Broadcast) -> None:
-    assert isinstance(message, Broadcast)
-    pickled = pickle.dumps(message)
-    size = len(pickled)
-    writer.write(size.to_bytes(SIZE_MARKER_LENGTH, 'little'))
-    writer.write(pickled)
+        self.logger = logging.getLogger('lahja.endpoint.OutboundConnection')
+        self._received_subscription = asyncio.Condition()
+
+    async def run(self) -> None:
+        while True:
+            try:
+                message = await self.conn.read_message()
+            except RemoteDisconnected:
+                return
+
+            if not isinstance(message, SubscriptionsUpdated):
+                self.logger.error(
+                    f'Endpoint {self.name} sent back an unexpected message: {type(message)}'
+                )
+                return
+
+            self.subscribed_messages = message.subscriptions
+            async with self._received_subscription:
+                self._received_subscription.notify_all()
+            if message.response_expected:
+                await self.send_message(SubscriptionsAck())
+
+    def can_send_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> bool:
+        is_response = config is not None and config.filter_event_id is not None
+        passes_config = config is None or config.allowed_to_receive(self.name)
+        passes_filter = type(item) in self.subscribed_messages
+
+        if not passes_config:
+            return False
+
+        return is_response or passes_filter
+
+    async def send_message(self, message: Msg) -> None:
+        await self.conn.send_message(message)
+
+    async def wait_until_subscription_received(self) -> None:
+        async with self._received_subscription:
+            await self._received_subscription.wait()
+
+    async def wait_until_subscribed_to(self, event: Type[BaseEvent]) -> None:
+        while event not in self.subscribed_messages:
+            await self.wait_until_subscription_received()
 
 
 TFunc = TypeVar('TFunc', bound=Callable[..., Any])
@@ -143,12 +281,13 @@ class Endpoint(BaseEndpoint):
     _loop: Optional[asyncio.AbstractEventLoop]
 
     def __init__(self) -> None:
-        self._connected_endpoints: Dict[str, RemoteEndpoint] = {}
+        self._outbound_connections: Dict[str, OutboundConnection] = {}
+        self._inbound_connections: Set[InboundConnection] = set()
         self._futures: Dict[Optional[str], 'asyncio.Future[BaseEvent]'] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List['asyncio.Queue[BaseEvent]']] = {}
 
-        self._child_coros: Set['asyncio.Future[Any]'] = set()
+        self._child_tasks: Set['asyncio.Future[Any]'] = set()
 
         self._running = False
         self._loop = None
@@ -230,25 +369,70 @@ class Endpoint(BaseEndpoint):
         )
         self._server_running.set()
 
-    async def _accept_conn(self, reader: StreamReader, writer: StreamWriter) -> None:
-        remote = RemoteEndpoint(reader, writer)
-        coro = asyncio.ensure_future(self._handle_client(remote))
-        coro.add_done_callback(lambda fut: self._child_coros.remove(fut))
-        self._child_coros.add(coro)
+    def receive_message(self, message: Broadcast) -> None:
+        self._receiving_queue.put_nowait((message.event, message.config))
 
-    async def _handle_client(self, remote: RemoteEndpoint) -> None:
-        while self._running:
-            try:
-                message = await remote.read_message()
-            except ReaderAtEof:
+    async def _accept_conn(self, reader: StreamReader, writer: StreamWriter) -> None:
+        conn = Connection(reader, writer)
+        remote = InboundConnection(conn, self.receive_message)
+        self._inbound_connections.add(remote)
+
+        task = asyncio.ensure_future(remote.run())
+        task.add_done_callback(lambda _: self._inbound_connections.remove(remote))
+        task.add_done_callback(self._child_tasks.remove)
+        self._child_tasks.add(task)
+
+        # the Endpoint on the other end blocks until it receives this message
+        await remote.notify_subscriptions_updated(self.subscribed_events)
+
+    @property
+    def subscribed_events(self) -> Set[Type[BaseEvent]]:
+        """
+        Return the set of events this Endpoint is currently listening for
+        """
+        return set(self._handler.keys()) | set(self._queues.keys())
+
+    async def _notify_subscriptions_changed(self) -> None:
+        """
+        Tell all inbound connections of our new subscriptions
+        """
+        # make a copy so that the set doesn't change while we iterate over it
+        for inbound_connection in self._inbound_connections.copy():
+            await inbound_connection.notify_subscriptions_updated(self.subscribed_events)
+
+    async def wait_until_any_connection_subscribed_to(self,
+                                                      event: Type[BaseEvent]) -> None:
+        """
+        Block until any other endpoint has subscribed to the ``event`` from this endpoint.
+        """
+        if len(self._outbound_connections) == 0:
+            raise Exception('there are no outbound connections!')
+
+        for outbound in self._outbound_connections.values():
+            if event in outbound.subscribed_messages:
                 return
 
-            if isinstance(message, Broadcast):
-                await self._receiving_queue.put((message.event, message.config))
-            else:
-                self.logger.warning(
-                    f'[{self.ipc_path}] received unexpected message: {message}'
-                )
+        coros = [
+            outbound.wait_until_subscribed_to(event)
+            for outbound in self._outbound_connections.values()
+        ]
+        _, pending = await asyncio.wait(coros, return_when=asyncio.FIRST_COMPLETED)
+        (task.cancel() for task in pending)
+
+    async def wait_until_all_connections_subscribed_to(self,
+                                                       event: Type[BaseEvent]) -> None:
+        """
+        Block until all other endpoints that we are connected to are subscribed to the ``event``
+        from this endpoint.
+        """
+        if len(self._outbound_connections) == 0:
+            raise Exception('there are no outbound connections!')
+
+        coros = [
+            outbound.wait_until_subscribed_to(event)
+            for outbound in self._outbound_connections.values()
+        ]
+        await asyncio.wait(coros, return_when=asyncio.ALL_COMPLETED)
 
     def _compress_event(self, event: BaseEvent) -> Union[BaseEvent, bytes]:
         if self.has_snappy_support:
@@ -272,7 +456,7 @@ class Endpoint(BaseEndpoint):
                 raise ConnectionAttemptRejected(
                     f"Trying to connect to {config.name} twice. Names must be uniqe."
                 )
-            elif config.name in self._connected_endpoints.keys():
+            elif config.name in self._outbound_connections.keys():
                 raise ConnectionAttemptRejected(
                     f"Already connected to {config.name} at {config.path}. Names must be unique."
                 )
@@ -324,18 +508,27 @@ class Endpoint(BaseEndpoint):
         await self.connect_to_endpoint(endpoint)
 
     async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
-        if config.name in self._connected_endpoints.keys():
+        if config.name in self._outbound_connections.keys():
             self.logger.warning(
                 "Tried to connect to %s but we are already connected to that Endpoint",
                 config.name
             )
             return
 
-        remote = await RemoteEndpoint.connect_to(str(config.path))
-        self._connected_endpoints[config.name] = remote
+        conn = await Connection.connect_to(str(config.path))
+        remote = OutboundConnection(config.name, conn)
+        self._outbound_connections[config.name] = remote
+
+        task = asyncio.ensure_future(remote.run())
+        task.add_done_callback(lambda _: self._outbound_connections.pop(config.name, None))
+        task.add_done_callback(self._child_tasks.remove)
+        self._child_tasks.add(task)
+
+        # don't return control until the caller can safely call broadcast()
+        await remote.wait_until_subscription_received()
 
     def is_connected_to(self, endpoint_name: str) -> bool:
-        return endpoint_name in self._connected_endpoints
+        return endpoint_name in self._outbound_connections
 
     def _process_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> None:
         if item is TRANSPARENT_EVENT:
@@ -367,8 +560,8 @@ class Endpoint(BaseEndpoint):
         self._running = False
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
         self._internal_queue.put_nowait((TRANSPARENT_EVENT, None))
-        for coro in self._child_coros:
-            coro.cancel()
+        for task in self._child_tasks:
+            task.cancel()
         self._server.close()
         self.ipc_path.unlink()
 
@@ -402,27 +595,28 @@ class Endpoint(BaseEndpoint):
             # Internal events simply bypass going through the central event bus
             # and are directly put into the local receiving queue instead.
             self._internal_queue.put_nowait((item, config))
-        else:
-            # Broadcast to every connected Endpoint that is allowed to receive the event
-            compressed_item = self._compress_event(item)
-            disconnected_endpoints = []
-            for name, remote in self._connected_endpoints.items():
-                allowed = (config is None) or config.allowed_to_receive(name)
-                if allowed:
-                    try:
-                        await remote.send_message(Broadcast(compressed_item, config))
-                    except ConnectionResetError:
-                        self.logger.debug(f'Remote endpoint {name} no longer exists')
-                        # the remote has disconnected from us
-                        disconnected_endpoints.append(name)
-            for name in disconnected_endpoints:
-                del self._connected_endpoints[name]
+            return
+
+        # Broadcast to every connected Endpoint that is allowed to receive the event
+        compressed_item = self._compress_event(item)
+        disconnected_endpoints = []
+        for name, remote in list(self._outbound_connections.items()):
+            # list() makes a copy, so changes to _outbount_connections don't cause errors
+            if remote.can_send_item(item, config):
+                try:
+                    await remote.send_message(Broadcast(compressed_item, config))
+                except RemoteDisconnected:
+                    self.logger.debug(f'Remote endpoint {name} no longer exists')
+                    disconnected_endpoints.append(name)
+        for name in disconnected_endpoints:
+            self._outbound_connections.pop(name, None)
 
     def broadcast_nowait(self,
                          item: BaseEvent,
                          config: Optional[BroadcastConfig] = None) -> None:
         """
-        A non-async `broadcast()` (see the docstring for `broadcast()` for more)
+        A non-async :meth:`~lahja.Endpoint.broadcast` (see :meth:`~lahja.Endpoint.broadcast`
+        for more)
 
         Instead of blocking the calling coroutine this function schedules the broadcast
         and immediately returns.
@@ -489,8 +683,18 @@ class Endpoint(BaseEndpoint):
         casted_handler = cast(Callable[[BaseEvent], Any], handler)
 
         self._handler[event_type].append(casted_handler)
+        # It's probably better to make subscribe() async and await this coro
+        asyncio.ensure_future(self._notify_subscriptions_changed())
 
-        return Subscription(lambda: self._handler[event_type].remove(casted_handler))
+        def remove() -> None:
+            self._handler[event_type].remove(casted_handler)
+            # this is asynchronous because that's a better user experience than making
+            # the user `await subscription.remove()`. This means this Endpoint will keep
+            # getting events for a little while after it stops listening for them but
+            # that's a performance problem, not a correctness problem.
+            asyncio.ensure_future(self._notify_subscriptions_changed())
+
+        return Subscription(remove)
 
     async def stream(self,
                      event_type: Type[TStreamEvent],
@@ -502,27 +706,27 @@ class Endpoint(BaseEndpoint):
         of events was received.
         """
         queue: 'asyncio.Queue[TStreamEvent]' = asyncio.Queue()
-
+        casted_queue = cast('asyncio.Queue[BaseEvent]', queue)
         if event_type not in self._queues:
             self._queues[event_type] = []
 
-        # mypy cannot reconcile BaseEvent with TStreamEvent
-        self._queues[event_type].append(queue)  # type: ignore
-        i = None if num_events is None else 0
-        while True:
-            try:
-                yield await queue.get()
-            except (GeneratorExit, asyncio.CancelledError):
-                # mypy cannot reconcile BaseEvent with TStreamEvent
-                self._queues[event_type].remove(queue)  # type: ignore
-                break
-            else:
-                if i is None:
-                    continue
+        self._queues[event_type].append(casted_queue)
+        await self._notify_subscriptions_changed()
 
-                i += 1
+        if num_events is None:
+            # loop forever
+            iterations = itertools.repeat(True)
+        else:
+            iterations = itertools.repeat(True, num_events)
 
-                if i >= cast(int, num_events):
-                    # mypy cannot reconcile BaseEvent with TStreamEvent
-                    self._queues[event_type].remove(queue)  # type: ignore
+        try:
+            for _ in iterations:
+                try:
+                    yield await queue.get()
+                except GeneratorExit:
                     break
+                except asyncio.CancelledError:
+                    break
+        finally:
+            self._queues[event_type].remove(casted_queue)
+            await self._notify_subscriptions_changed()

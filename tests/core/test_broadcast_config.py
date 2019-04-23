@@ -27,9 +27,10 @@ async def test_broadcasts_to_all_endpoints(triplet_of_endpoints):
         tracker.track_and_broadcast_dummy(2, endpoint2)
     )
 
+    await endpoint3.wait_until_all_connections_subscribed_to(DummyRequestPair)
+
     item = DummyRequestPair()
     response = await endpoint3.request(item)
-    print(response.property_of_dummy_response)
     assert isinstance(response, DummyResponse)
     assert tracker.exists(1)
     assert tracker.exists(2)
@@ -58,9 +59,10 @@ async def test_broadcasts_to_specific_endpoint(triplet_of_endpoints):
         tracker.track_and_broadcast_dummy(2, endpoint1)
     )
 
+    await endpoint3.wait_until_all_connections_subscribed_to(DummyRequestPair)
+
     item = DummyRequestPair()
     response = await endpoint3.request(item, BroadcastConfig(filter_endpoint=endpoint1.name))
-    print(response.property_of_dummy_response)
     assert isinstance(response, DummyResponse)
     assert tracker.exists(1)
     assert not tracker.exists(2)

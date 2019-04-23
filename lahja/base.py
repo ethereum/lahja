@@ -89,6 +89,21 @@ class EndpointAPI(ABC):
         """
         pass
 
+    @abstractmethod
+    async def wait_until_any_connection_subscribed_to(self,
+                                                      event: Type[BaseEvent]) -> None:
+        """
+        Block until any other endpoint has subscribed to the ``event`` from this endpoint.
+        """
+        pass
+
+    async def wait_until_all_connections_subscribed_to(self,
+                                                       event: Type[BaseEvent]) -> None:
+        """
+        Block until all other endpoints that we are connected to are subscribed to the ``event``
+        from this endpoint.
+        """
+
     #
     # Event API
     #

@@ -26,9 +26,11 @@ async def test_request(endpoint):
         )
     )
 
+    await endpoint.wait_until_any_connection_subscribed_to(DummyRequestPair)
+
     item = DummyRequestPair()
     response = await endpoint.request(item)
-    # Accessing `ev.property_of_dummy_response` here allows us to validate
+    # Accessing `response.property_of_dummy_response` here allows us to validate
     # mypy has the type information we think it has. We run mypy on the tests.
     print(response.property_of_dummy_response)
     assert isinstance(response, DummyResponse)
@@ -58,6 +60,8 @@ async def test_response_must_match(endpoint):
         )
     )
 
+    await endpoint.wait_until_any_connection_subscribed_to(DummyRequestPair)
+
     with pytest.raises(UnexpectedResponse):
         await endpoint.request(DummyRequestPair())
 
@@ -78,6 +82,7 @@ async def test_stream_with_break(endpoint):
                 break
 
     asyncio.ensure_future(stream_response())
+    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(5):
@@ -102,6 +107,7 @@ async def test_stream_with_num_events(endpoint):
             stream_counter += 1
 
     asyncio.ensure_future(stream_response())
+    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(3):
@@ -136,6 +142,7 @@ async def test_stream_can_get_cancelled(endpoint):
 
     stream_coro = asyncio.ensure_future(stream_response())
     cancel_coro = asyncio.ensure_future(cancel_soon())
+    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
 
     for i in range(50):
         await endpoint.broadcast(DummyRequest())
@@ -164,6 +171,7 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint):
             await asyncio.sleep(0.01)
 
     task = asyncio.ensure_future(stream_response())
+    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
 
     async def cancel_soon():
         while True:
@@ -189,13 +197,14 @@ async def test_wait_for(endpoint):
 
     async def stream_response():
         request = await endpoint.wait_for(DummyRequest)
-        # Accessing `ev.property_of_dummy_request` here allows us to validate
+        # Accessing `request.property_of_dummy_request` here allows us to validate
         # mypy has the type information we think it has. We run mypy on the tests.
         print(request.property_of_dummy_request)
         nonlocal received
         received = request
 
     asyncio.ensure_future(stream_response())
+    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
     await endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
@@ -227,6 +236,7 @@ async def test_exceptions_dont_stop_processing(capsys, endpoint):
         the_set.remove(message.item)
 
     endpoint.subscribe(RemoveItem, handle)
+    await endpoint.wait_until_any_connection_subscribed_to(RemoveItem)
 
     # this call should work
     await endpoint.broadcast(RemoveItem(1))

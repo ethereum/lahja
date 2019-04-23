@@ -26,8 +26,5 @@ class UnexpectedResponse(LahjaError):
     pass
 
 
-class ReaderAtEof(LahjaError):
-    """
-    Raised by RemoteEndpoint when the remote has closed the connection.
-    """
+class RemoteDisconnected(LahjaError):
     pass
