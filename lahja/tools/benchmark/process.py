@@ -70,7 +70,7 @@ class DriverProcess:
         payload = b'\x00' * config.payload_bytes
         for n in range(config.num_events):
             await asyncio.sleep(config.throttle)
-            event_bus.broadcast(
+            await event_bus.broadcast(
                 PerfMeasureEvent(payload, n, time.time())
             )
 
@@ -102,7 +102,7 @@ class ConsumerProcess:
             ))
 
             if next(counter) == num_events:
-                event_bus.broadcast(
+                await event_bus.broadcast(
                     TotalRecordedEvent(stats.crunch(event_bus.name)),
                     BroadcastConfig(filter_endpoint=REPORTER_ENDPOINT)
                 )
@@ -156,7 +156,10 @@ class ReportingProcess:
             global_statistic.add(event.total)
             if len(global_statistic) == config.num_processes:
                 print_full_report(logger, config.num_processes, config.num_events, global_statistic)
-                event_bus.broadcast(ShutdownEvent(), BroadcastConfig(filter_endpoint=ROOT_ENDPOINT))
+                await event_bus.broadcast(
+                    ShutdownEvent(),
+                    BroadcastConfig(filter_endpoint=ROOT_ENDPOINT)
+                )
                 event_bus.stop()
                 break
 

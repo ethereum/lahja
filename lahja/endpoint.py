@@ -358,7 +358,7 @@ class Endpoint:
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
         self._internal_queue.put_nowait((TRANSPARENT_EVENT, None))
 
-    def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
+    async def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         """
         Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus. Takes
         an optional second parameter of :class:`~lahja.misc.BroadcastConfig` to decide
@@ -396,7 +396,7 @@ class Endpoint:
         future: asyncio.Future = asyncio.Future(loop=self.event_loop)
         self._futures[item._id] = future
 
-        self.broadcast(item, config)
+        await self.broadcast(item, config)
 
         future.add_done_callback(functools.partial(self._remove_cancelled_future, item._id))
 

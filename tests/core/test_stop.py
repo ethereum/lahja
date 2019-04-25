@@ -31,4 +31,4 @@ async def test_can_stop(
 
     first_endpoint.stop()
 
-    second_endpoint.broadcast(DummyResponse(None))
+    await second_endpoint.broadcast(DummyResponse(None))

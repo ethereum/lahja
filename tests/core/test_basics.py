@@ -1,4 +1,7 @@
 import asyncio
+from typing import (
+    cast,
+)
 
 import pytest
 
@@ -21,11 +24,11 @@ from lahja import (
 async def test_request(endpoint: Endpoint) -> None:
     endpoint.subscribe(
         DummyRequestPair,
-        lambda ev: endpoint.broadcast(
+        lambda ev: cast(None, asyncio.ensure_future(endpoint.broadcast(
             # Accessing `ev.property_of_dummy_request_pair` here allows us to validate
             # mypy has the type information we think it has. We run mypy on the tests.
             DummyResponse(ev.property_of_dummy_request_pair), ev.broadcast_config()
-        )
+        )))
     )
 
     item = DummyRequestPair()
@@ -53,11 +56,11 @@ async def test_request_can_get_cancelled(endpoint: Endpoint) -> None:
 async def test_response_must_match(endpoint: Endpoint) -> None:
     endpoint.subscribe(
         DummyRequestPair,
-        lambda ev: endpoint.broadcast(
+        lambda ev: cast(None, asyncio.ensure_future(endpoint.broadcast(
             # We intentionally broadcast an unexpected response. Mypy can't catch
             # this but we ensure it is caught and raised during the processing.
             DummyRequest(), ev.broadcast_config()
-        )
+        )))
     )
 
     with pytest.raises(UnexpectedResponse):
@@ -83,7 +86,7 @@ async def test_stream_with_break(endpoint: Endpoint) -> None:
 
     # we broadcast one more item than what we consume and test for that
     for i in range(5):
-        endpoint.broadcast(DummyRequest())
+        await endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
@@ -107,7 +110,7 @@ async def test_stream_with_num_events(endpoint: Endpoint) -> None:
 
     # we broadcast one more item than what we consume and test for that
     for i in range(3):
-        endpoint.broadcast(DummyRequest())
+        await endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
@@ -140,7 +143,7 @@ async def test_stream_can_get_cancelled(endpoint: Endpoint) -> None:
     asyncio.ensure_future(cancel_soon())
 
     for i in range(50):
-        endpoint.broadcast(DummyRequest())
+        await endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.2)
     # Ensure the registration was cleaned up
@@ -173,7 +176,7 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint: Endpoint) 
     asyncio.ensure_future(cancel_soon())
 
     for i in range(10):
-        endpoint.broadcast(DummyRequest())
+        await endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.1)
     # Ensure the registration was cleaned up
@@ -194,7 +197,7 @@ async def test_wait_for(endpoint: Endpoint) -> None:
         received = request
 
     asyncio.ensure_future(stream_response())
-    endpoint.broadcast(DummyRequest())
+    await endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
     assert isinstance(received, DummyRequest)
