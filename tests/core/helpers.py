@@ -1,4 +1,3 @@
-import asyncio
 from typing import (  # noqa: F401,
     Any,
     Callable,
@@ -57,7 +56,7 @@ class Tracker:
                                   ev: DummyRequestPair) -> None:
         self.track_and_run(
             track_id,
-            lambda: asyncio.ensure_future(endpoint.broadcast(
+            lambda: endpoint.broadcast_nowait(
                 DummyResponse(ev.property_of_dummy_request_pair), ev.broadcast_config()
-            ))
+            )
         )

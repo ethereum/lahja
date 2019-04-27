@@ -365,6 +365,17 @@ class Endpoint:
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
+        self.broadcast_nowait(item, config)
+
+    def broadcast_nowait(self,
+                         item: BaseEvent,
+                         config: Optional[BroadcastConfig] = None) -> None:
+        """
+        A non-async `broadcast()` (see the docstring for `broadcast()` for more)
+
+        Instead of blocking the calling coroutine this function schedules the broadcast
+        and immediately returns.
+        """
         item._origin = self.name
         if config is not None and config.internal:
             # Internal events simply bypass going through the central event bus

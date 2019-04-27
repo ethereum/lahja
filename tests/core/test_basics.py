@@ -1,7 +1,4 @@
 import asyncio
-from typing import (
-    cast,
-)
 
 import pytest
 
@@ -24,11 +21,11 @@ from lahja import (
 async def test_request(endpoint: Endpoint) -> None:
     endpoint.subscribe(
         DummyRequestPair,
-        lambda ev: cast(None, asyncio.ensure_future(endpoint.broadcast(
+        lambda ev: endpoint.broadcast_nowait(
             # Accessing `ev.property_of_dummy_request_pair` here allows us to validate
             # mypy has the type information we think it has. We run mypy on the tests.
             DummyResponse(ev.property_of_dummy_request_pair), ev.broadcast_config()
-        )))
+        )
     )
 
     item = DummyRequestPair()
@@ -56,11 +53,11 @@ async def test_request_can_get_cancelled(endpoint: Endpoint) -> None:
 async def test_response_must_match(endpoint: Endpoint) -> None:
     endpoint.subscribe(
         DummyRequestPair,
-        lambda ev: cast(None, asyncio.ensure_future(endpoint.broadcast(
+        lambda ev: endpoint.broadcast_nowait(
             # We intentionally broadcast an unexpected response. Mypy can't catch
             # this but we ensure it is caught and raised during the processing.
             DummyRequest(), ev.broadcast_config()
-        )))
+        )
     )
 
     with pytest.raises(UnexpectedResponse):
