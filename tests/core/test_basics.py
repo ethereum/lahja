@@ -2,12 +2,16 @@ import asyncio
 
 import pytest
 
+from _pytest.capture import (
+    SysCapture,
+)
 from helpers import (
     DummyRequest,
     DummyRequestPair,
     DummyResponse,
 )
 from lahja import (
+    BaseEvent,
     Endpoint,
     UnexpectedResponse,
 )
@@ -204,3 +208,42 @@ async def test_wait_for_can_get_cancelled(endpoint: Endpoint) -> None:
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
     assert len(endpoint._queues[DummyRequest]) == 0
+
+
+class RemoveItem(BaseEvent):
+    def __init__(self, item: int) -> None:
+        super().__init__()
+        self.item = item
+
+
+@pytest.mark.asyncio
+async def test_exceptions_dont_stop_processing(capsys: SysCapture,
+                                               endpoint: Endpoint) -> None:
+
+    the_set = {1, 3}
+
+    def handle(message: RemoveItem) -> None:
+        the_set.remove(message.item)
+
+    endpoint.subscribe(RemoveItem, handle)
+
+    # this call should work
+    endpoint.broadcast(RemoveItem(1))
+    await asyncio.sleep(0.05)
+    assert the_set == {3}
+
+    captured = capsys.readouterr()
+    assert len(captured.err) == 0
+
+    # this call causes an exception
+    endpoint.broadcast(RemoveItem(2))
+    await asyncio.sleep(0.05)
+    assert the_set == {3}
+
+    captured = capsys.readouterr()
+    assert len(captured.err) > 0
+
+    # despite the previous exception this message should get through
+    endpoint.broadcast(RemoveItem(3))
+    await asyncio.sleep(0.05)
+    assert the_set == set()

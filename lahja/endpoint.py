@@ -8,6 +8,7 @@ from multiprocessing.managers import (  # type: ignore # Typeshed definition is 
 import pathlib
 import pickle
 import threading
+import traceback
 from typing import (  # noqa: F401
     Any,
     AsyncGenerator,
@@ -175,13 +176,8 @@ class Endpoint:
         self._internal_queue = asyncio.Queue(loop=self.event_loop)
         self._receiving_queue = asyncio.Queue(loop=self.event_loop)
 
-        # Using `gather` (over e.g. `wait` or plain `ensure_future`) ensures that the inner futures
-        # are automatically cancelled as soon as the parent task is cancelled
-        asyncio.gather(
-            asyncio.ensure_future(self._connect_receiving_queue(), loop=self.event_loop),
-            asyncio.ensure_future(self._connect_internal_queue(), loop=self.event_loop),
-            loop=self.event_loop
-        )
+        asyncio.ensure_future(self._connect_receiving_queue(), loop=self.event_loop)
+        asyncio.ensure_future(self._connect_internal_queue(), loop=self.event_loop)
 
         self._running = True
 
@@ -238,14 +234,20 @@ class Endpoint:
         self._receiving_loop_running.set()
         while self._running:
             (item, config) = await self._receiving_queue.get()
-            event = self._decompress_event(item)
-            self._process_item(event, config)
+            try:
+                event = self._decompress_event(item)
+                self._process_item(event, config)
+            except Exception:
+                traceback.print_exc()
 
     async def _connect_internal_queue(self) -> None:
         self._internal_loop_running.set()
         while self._running:
             (item, config) = await self._internal_queue.get()
-            self._process_item(item, config)
+            try:
+                self._process_item(item, config)
+            except Exception:
+                traceback.print_exc()
 
     def _create_external_api(self, ipc_path: pathlib.Path) -> None:
 
