@@ -43,10 +43,13 @@ extras_require = {
     ]
 }
 
+extras_require['dev'] = (
+    extras_require['dev'] +  # noqa: W504
+    extras_require['test'] +  # noqa: W504
+    extras_require['lint'] +  # noqa: W504
+    extras_require['doc']
+)
 
-extras_require['dev'].extend(extras_require['test'])
-extras_require['dev'].extend(extras_require['lint'])
-extras_require['dev'].extend(extras_require['doc'])
 
 with open('./README.md') as readme:
     long_description = readme.read()
