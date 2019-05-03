@@ -56,17 +56,18 @@ class DriverProcess:
 
     @staticmethod
     def launch(config: DriverProcessConfig) -> None:
-        loop = asyncio.get_event_loop()
-        event_bus = Endpoint()
-        event_bus.start_serving_nowait(ConnectionConfig.from_name(DRIVER_ENDPOINT))
-        event_bus.connect_to_endpoints_blocking(*config.connected_endpoints)
         # UNCOMMENT FOR DEBUGGING
         # logger = multiprocessing.log_to_stderr()
         # logger.setLevel(logging.INFO)
-        loop.run_until_complete(DriverProcess.worker(event_bus, config))
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(DriverProcess.worker(config))
 
     @staticmethod
-    async def worker(event_bus: Endpoint, config: DriverProcessConfig) -> None:
+    async def worker(config: DriverProcessConfig) -> None:
+        event_bus = Endpoint()
+        await event_bus.start_serving(ConnectionConfig.from_name(DRIVER_ENDPOINT))
+        await event_bus.connect_to_endpoints(*config.connected_endpoints)
+
         payload = b'\x00' * config.payload_bytes
         for n in range(config.num_events):
             await asyncio.sleep(config.throttle)
@@ -92,7 +93,21 @@ class ConsumerProcess:
         self._process.start()
 
     @staticmethod
-    async def worker(event_bus: Endpoint, num_events: int) -> None:
+    def launch(name: str, num_events: int) -> None:
+        # UNCOMMENT FOR DEBUGGING
+        # logger = multiprocessing.log_to_stderr()
+        # logger.setLevel(logging.INFO)
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(ConsumerProcess.worker(name, num_events))
+
+    @staticmethod
+    async def worker(name: str, num_events: int) -> None:
+        event_bus = Endpoint()
+        await event_bus.start_serving(ConnectionConfig.from_name(name))
+        await event_bus.connect_to_endpoints(
+            ConnectionConfig.from_name(REPORTER_ENDPOINT)
+        )
+
         counter = itertools.count(1)
         stats = LocalStatistic()
         async for event in event_bus.stream(PerfMeasureEvent):
@@ -108,20 +123,6 @@ class ConsumerProcess:
                 )
                 event_bus.stop()
                 break
-
-    @staticmethod
-    def launch(name: str, num_events: int) -> None:
-        loop = asyncio.get_event_loop()
-        event_bus = Endpoint()
-        event_bus.start_serving_nowait(ConnectionConfig.from_name(name))
-        event_bus.connect_to_endpoints_blocking(
-            ConnectionConfig.from_name(REPORTER_ENDPOINT)
-        )
-        # UNCOMMENT FOR DEBUGGING
-        # logger = multiprocessing.log_to_stderr()
-        # logger.setLevel(logging.INFO)
-
-        loop.run_until_complete(ConsumerProcess.worker(event_bus, num_events))
 
 
 class ReportingProcessConfig(NamedTuple):
@@ -146,9 +147,20 @@ class ReportingProcess:
         self._process.start()
 
     @staticmethod
-    async def worker(event_bus: Endpoint,
-                     logger: logging.Logger,
+    def launch(config: ReportingProcessConfig) -> None:
+        logging.basicConfig(level=logging.INFO, format='%(message)s')
+        logger = logging.getLogger('reporting')
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(ReportingProcess.worker(logger, config))
+
+    @staticmethod
+    async def worker(logger: logging.Logger,
                      config: ReportingProcessConfig) -> None:
+
+        event_bus = Endpoint()
+        await event_bus.start_serving(ConnectionConfig.from_name(REPORTER_ENDPOINT))
+        await event_bus.connect_to_endpoints(ConnectionConfig.from_name(ROOT_ENDPOINT))
 
         global_statistic = GlobalStatistic()
         async for event in event_bus.stream(TotalRecordedEvent):
@@ -162,15 +174,3 @@ class ReportingProcess:
                 )
                 event_bus.stop()
                 break
-
-    @staticmethod
-    def launch(config: ReportingProcessConfig) -> None:
-        logging.basicConfig(level=logging.INFO, format='%(message)s')
-        logger = logging.getLogger('reporting')
-
-        loop = asyncio.get_event_loop()
-        event_bus = Endpoint()
-        event_bus.start_serving_nowait(ConnectionConfig.from_name(REPORTER_ENDPOINT))
-        event_bus.connect_to_endpoints_blocking(ConnectionConfig.from_name(ROOT_ENDPOINT))
-
-        loop.run_until_complete(ReportingProcess.worker(event_bus, logger, config))

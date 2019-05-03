@@ -29,8 +29,7 @@ from lahja.tools.benchmark.utils.config import (
 )
 
 
-if __name__ == "__main__":
-
+async def run():
     parser = argparse.ArgumentParser()
     parser.add_argument('--num-processes', type=int, default=10,
                         help='The number of processes listening for events')
@@ -49,7 +48,7 @@ if __name__ == "__main__":
     consumer_endpoint_configs = create_consumer_endpoint_configs(args.num_processes)
 
     root = Endpoint()
-    root.start_serving_nowait(ConnectionConfig.from_name(ROOT_ENDPOINT))
+    await root.start_serving(ConnectionConfig.from_name(ROOT_ENDPOINT))
 
     # In this benchmark, this is the only process that is flooding events
     driver_config = DriverProcessConfig(
@@ -79,11 +78,13 @@ if __name__ == "__main__":
         )
         consumer_process.start()
 
-    async def shutdown():
-        await root.wait_for(ShutdownEvent)
-        root.stop()
-        asyncio.get_event_loop().stop()
-
     reporter.start()
     driver.start()
-    asyncio.get_event_loop().run_until_complete(shutdown())
+    await root.wait_for(ShutdownEvent)
+    root.stop()
+
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run())
+    loop.stop()

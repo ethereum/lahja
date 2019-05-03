@@ -26,11 +26,16 @@ class GetSomethingRequest(BaseRequestResponseEvent[DeliverSomethingResponse]):
 
 
 # Base functions for first process
-def run_proc1():
+def spawn_proc1():
     loop = asyncio.get_event_loop()
+    loop.ensure_future(run_proc1())
+    loop.run_forever()
+
+
+async def run_proc1():
     endpoint = Endpoint()
-    endpoint.start_serving_nowait(ConnectionConfig.from_name('e1'))
-    endpoint.connect_to_endpoints_nowait(
+    await endpoint.start_serving(ConnectionConfig.from_name('e1'))
+    await endpoint.connect_to_endpoints(
         ConnectionConfig.from_name('e2'),
     )
     print("subscribing")
@@ -39,17 +44,17 @@ def run_proc1():
         # Send a response back to *only* who made that request
         endpoint.broadcast_nowait(DeliverSomethingResponse("Yay"), event.broadcast_config())
     )
-    loop.run_forever()
 
 
 # Base functions for second process
 def run_proc2():
-    endpoint = Endpoint()
     loop = asyncio.get_event_loop()
-    endpoint.start_serving_nowait(ConnectionConfig.from_name('e2'))
-    loop.run_until_complete(proc2_worker(endpoint))
+    loop.run_until_complete(proc2_worker())
 
-async def proc2_worker(endpoint):
+
+async def proc2_worker():
+    endpoint = Endpoint()
+    await endpoint.start_serving(ConnectionConfig.from_name('e2'))
     await endpoint.connect_to_endpoints(
         ConnectionConfig.from_name('e1'),
     )
@@ -62,7 +67,7 @@ if __name__ == "__main__":
 
     multiprocessing.set_start_method('spawn')
 
-    p1 = multiprocessing.Process(target=run_proc1)
+    p1 = multiprocessing.Process(target=spawn_proc1)
     p1.start()
 
     p2 = multiprocessing.Process(target=run_proc2)

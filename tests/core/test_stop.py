@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from conftest import (
@@ -15,16 +13,15 @@ from lahja import (
 
 
 @pytest.mark.asyncio
-async def test_can_stop(
-        event_loop: asyncio.AbstractEventLoop) -> None:
+async def test_can_stop() -> None:
 
     first = ConnectionConfig.from_name(generate_unique_name())
     first_endpoint = Endpoint()
-    await first_endpoint.start_serving(first, event_loop)
+    await first_endpoint.start_serving(first)
 
     second = ConnectionConfig.from_name(generate_unique_name())
     second_endpoint = Endpoint()
-    await second_endpoint.start_serving(second, event_loop)
+    await second_endpoint.start_serving(second)
 
     await first_endpoint.connect_to_endpoints(second)
     await second_endpoint.connect_to_endpoints(first)
