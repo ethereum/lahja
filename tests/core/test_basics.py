@@ -228,7 +228,7 @@ async def test_exceptions_dont_stop_processing(capsys: SysCapture,
     endpoint.subscribe(RemoveItem, handle)
 
     # this call should work
-    endpoint.broadcast(RemoveItem(1))
+    await endpoint.broadcast(RemoveItem(1))
     await asyncio.sleep(0.05)
     assert the_set == {3}
 
@@ -236,7 +236,7 @@ async def test_exceptions_dont_stop_processing(capsys: SysCapture,
     assert len(captured.err) == 0
 
     # this call causes an exception
-    endpoint.broadcast(RemoveItem(2))
+    await endpoint.broadcast(RemoveItem(2))
     await asyncio.sleep(0.05)
     assert the_set == {3}
 
@@ -244,6 +244,6 @@ async def test_exceptions_dont_stop_processing(capsys: SysCapture,
     assert len(captured.err) > 0
 
     # despite the previous exception this message should get through
-    endpoint.broadcast(RemoveItem(3))
+    await endpoint.broadcast(RemoveItem(3))
     await asyncio.sleep(0.05)
     assert the_set == set()
