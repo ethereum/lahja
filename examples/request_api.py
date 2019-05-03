@@ -30,14 +30,14 @@ def run_proc1():
     loop = asyncio.get_event_loop()
     endpoint = Endpoint()
     endpoint.start_serving_nowait(ConnectionConfig.from_name('e1'))
-    endpoint.connect_to_endpoints_blocking(
+    endpoint.connect_to_endpoints_nowait(
         ConnectionConfig.from_name('e2'),
     )
     print("subscribing")
     # Listen for `GetSomethingRequest`'s
     endpoint.subscribe(GetSomethingRequest, lambda event:
         # Send a response back to *only* who made that request
-        endpoint.broadcast(DeliverSomethingResponse("Yay"), event.broadcast_config())
+        endpoint.broadcast_nowait(DeliverSomethingResponse("Yay"), event.broadcast_config())
     )
     loop.run_forever()
 
@@ -47,12 +47,12 @@ def run_proc2():
     endpoint = Endpoint()
     loop = asyncio.get_event_loop()
     endpoint.start_serving_nowait(ConnectionConfig.from_name('e2'))
-    endpoint.connect_to_endpoints_blocking(
-        ConnectionConfig.from_name('e1'),
-    )
     loop.run_until_complete(proc2_worker(endpoint))
 
 async def proc2_worker(endpoint):
+    await endpoint.connect_to_endpoints(
+        ConnectionConfig.from_name('e1'),
+    )
     for i in range(3):
         print("Requesting")
         result = await endpoint.request(GetSomethingRequest())

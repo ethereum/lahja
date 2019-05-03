@@ -27,7 +27,7 @@ def run_proc1():
     loop = asyncio.get_event_loop()
     endpoint = Endpoint()
     endpoint.start_serving_nowait(ConnectionConfig.from_name('e1'))
-    endpoint.connect_to_endpoints_blocking(
+    endpoint.connect_to_endpoints_nowait(
         ConnectionConfig.from_name('e2')
     )
     endpoint.subscribe(SecondThingHappened, lambda event: 
@@ -43,7 +43,7 @@ async def proc1_worker(endpoint):
     while True:
         print("Hello from proc1")
         if is_nth_second(5):
-            endpoint.broadcast(
+            await endpoint.broadcast(
                 FirstThingHappened("Hit from proc1 ({})".format(time.time()))
             )
         await asyncio.sleep(1)
@@ -53,7 +53,7 @@ def run_proc2():
     loop = asyncio.get_event_loop()
     endpoint = Endpoint()
     endpoint.start_serving_nowait(ConnectionConfig.from_name('e2'))
-    endpoint.connect_to_endpoints_blocking(
+    endpoint.connect_to_endpoints_nowait(
         ConnectionConfig.from_name('e1')
     )
     endpoint.subscribe(FirstThingHappened, lambda event: 
@@ -68,7 +68,7 @@ async def proc2_worker(endpoint):
     while True:
         print("Hello from proc2")
         if is_nth_second(2):
-            endpoint.broadcast(
+            await endpoint.broadcast(
                 SecondThingHappened("Hit from proc2 ({})".format(time.time()))
             )
         await asyncio.sleep(1)
