@@ -25,9 +25,12 @@ class SecondThingHappened(BaseExampleEvent):
 # Base functions for first process
 def run_proc1():
     loop = asyncio.get_event_loop()
+    loop.run_until_complete(proc1_worker(endpoint))
+
+async def proc1_worker(endpoint):
     endpoint = Endpoint()
-    endpoint.start_serving_nowait(ConnectionConfig.from_name('e1'))
-    endpoint.connect_to_endpoints_blocking(
+    await endpoint.start_serving(ConnectionConfig.from_name('e1'))
+    await endpoint.connect_to_endpoints(
         ConnectionConfig.from_name('e2')
     )
     endpoint.subscribe(SecondThingHappened, lambda event: 
@@ -37,13 +40,10 @@ def run_proc1():
         print("Receiving own event: ", event.payload)
     )
 
-    loop.run_until_complete(proc1_worker(endpoint))
-
-async def proc1_worker(endpoint):
     while True:
         print("Hello from proc1")
         if is_nth_second(5):
-            endpoint.broadcast(
+            await endpoint.broadcast(
                 FirstThingHappened("Hit from proc1 ({})".format(time.time()))
             )
         await asyncio.sleep(1)
@@ -51,24 +51,23 @@ async def proc1_worker(endpoint):
 # Base functions for second process
 def run_proc2():
     loop = asyncio.get_event_loop()
+    loop.run_until_complete(proc2_worker())
+
+
+async def proc2_worker():
     endpoint = Endpoint()
-    endpoint.start_serving_nowait(ConnectionConfig.from_name('e2'))
-    endpoint.connect_to_endpoints_blocking(
+    await endpoint.start_serving(ConnectionConfig.from_name('e2'))
+    await endpoint.connect_to_endpoints(
         ConnectionConfig.from_name('e1')
     )
+    asyncio.ensure_future(display_proc1_events(endpoint))
     endpoint.subscribe(FirstThingHappened, lambda event: 
         print("Received via SUBSCRIBE API in proc2:", event.payload)
     )
-    asyncio.ensure_future(display_proc1_events(endpoint))
-
-    loop.run_until_complete(proc2_worker(endpoint))
-
-
-async def proc2_worker(endpoint):
     while True:
         print("Hello from proc2")
         if is_nth_second(2):
-            endpoint.broadcast(
+            await endpoint.broadcast(
                 SecondThingHappened("Hit from proc2 ({})".format(time.time()))
             )
         await asyncio.sleep(1)

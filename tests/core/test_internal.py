@@ -22,7 +22,7 @@ async def test_internal_propagation(pair_of_endpoints: Tuple[Endpoint, Endpoint]
     async def broadcast_dummies() -> None:
         while True:
             # We are broadcasting internally on endpoint1
-            endpoint1.broadcast(
+            await endpoint1.broadcast(
                 DummyResponse("Dummy"),
                 BroadcastConfig(internal=True)
             )

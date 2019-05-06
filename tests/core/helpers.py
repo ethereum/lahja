@@ -56,7 +56,7 @@ class Tracker:
                                   ev: DummyRequestPair) -> None:
         self.track_and_run(
             track_id,
-            lambda: endpoint.broadcast(
+            lambda: endpoint.broadcast_nowait(
                 DummyResponse(ev.property_of_dummy_request_pair), ev.broadcast_config()
             )
         )

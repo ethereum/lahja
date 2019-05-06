@@ -1,9 +1,9 @@
 import asyncio
-import itertools
 import logging
 import multiprocessing
 import time
 from typing import (  # noqa: F401
+    AsyncGenerator,
     NamedTuple,
     Optional,
     Tuple,
@@ -56,21 +56,22 @@ class DriverProcess:
 
     @staticmethod
     def launch(config: DriverProcessConfig) -> None:
-        loop = asyncio.get_event_loop()
-        event_bus = Endpoint()
-        event_bus.start_serving_nowait(ConnectionConfig.from_name(DRIVER_ENDPOINT))
-        event_bus.connect_to_endpoints_blocking(*config.connected_endpoints)
         # UNCOMMENT FOR DEBUGGING
         # logger = multiprocessing.log_to_stderr()
         # logger.setLevel(logging.INFO)
-        loop.run_until_complete(DriverProcess.worker(event_bus, config))
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(DriverProcess.worker(config))
 
     @staticmethod
-    async def worker(event_bus: Endpoint, config: DriverProcessConfig) -> None:
+    async def worker(config: DriverProcessConfig) -> None:
+        event_bus = Endpoint()
+        await event_bus.start_serving(ConnectionConfig.from_name(DRIVER_ENDPOINT))
+        await event_bus.connect_to_endpoints(*config.connected_endpoints)
+
         payload = b'\x00' * config.payload_bytes
         for n in range(config.num_events):
             await asyncio.sleep(config.throttle)
-            event_bus.broadcast(
+            await event_bus.broadcast(
                 PerfMeasureEvent(payload, n, time.time())
             )
 
@@ -92,36 +93,51 @@ class ConsumerProcess:
         self._process.start()
 
     @staticmethod
-    async def worker(event_bus: Endpoint, num_events: int) -> None:
-        counter = itertools.count(1)
-        stats = LocalStatistic()
-        async for event in event_bus.stream(PerfMeasureEvent):
-            stats.add(RawMeasureEntry(
-                sent_at=event.sent_at,
-                received_at=time.time()
-            ))
-
-            if next(counter) == num_events:
-                event_bus.broadcast(
-                    TotalRecordedEvent(stats.crunch(event_bus.name)),
-                    BroadcastConfig(filter_endpoint=REPORTER_ENDPOINT)
-                )
-                event_bus.stop()
-                break
-
-    @staticmethod
     def launch(name: str, num_events: int) -> None:
-        loop = asyncio.get_event_loop()
-        event_bus = Endpoint()
-        event_bus.start_serving_nowait(ConnectionConfig.from_name(name))
-        event_bus.connect_to_endpoints_blocking(
-            ConnectionConfig.from_name(REPORTER_ENDPOINT)
-        )
         # UNCOMMENT FOR DEBUGGING
         # logger = multiprocessing.log_to_stderr()
         # logger.setLevel(logging.INFO)
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(ConsumerProcess.worker(name, num_events))
 
-        loop.run_until_complete(ConsumerProcess.worker(event_bus, num_events))
+    @staticmethod
+    async def gen_with_timeout(generator: AsyncGenerator, timeout: int) -> AsyncGenerator:
+        try:
+            while True:
+                # the asyncio.TimeoutError is the caller's responsibility
+                future = asyncio.ensure_future(generator.__anext__())
+                future.add_done_callback(lambda x: None)
+                yield await asyncio.wait_for(future, timeout=timeout)
+        except StopAsyncIteration:
+            pass
+
+    @staticmethod
+    async def worker(name: str, num_events: int) -> None:
+        event_bus = Endpoint()
+        await event_bus.start_serving(ConnectionConfig.from_name(name))
+        await event_bus.connect_to_endpoints(
+            ConnectionConfig.from_name(REPORTER_ENDPOINT)
+        )
+
+        events = ConsumerProcess.gen_with_timeout(
+            event_bus.stream(PerfMeasureEvent, num_events=num_events),
+            timeout=5
+        )
+        stats = LocalStatistic()
+        try:
+            async for event in events:
+                stats.add(RawMeasureEntry(
+                    sent_at=event.sent_at,
+                    received_at=time.time()
+                ))
+        except asyncio.TimeoutError:
+            print('Some messages from the consumer were dropped')
+
+        await event_bus.broadcast(
+            TotalRecordedEvent(stats.crunch(event_bus.name)),
+            BroadcastConfig(filter_endpoint=REPORTER_ENDPOINT)
+        )
+        event_bus.stop()
 
 
 class ReportingProcessConfig(NamedTuple):
@@ -146,28 +162,27 @@ class ReportingProcess:
         self._process.start()
 
     @staticmethod
-    async def worker(event_bus: Endpoint,
-                     logger: logging.Logger,
-                     config: ReportingProcessConfig) -> None:
-
-        global_statistic = GlobalStatistic()
-        async for event in event_bus.stream(TotalRecordedEvent):
-
-            global_statistic.add(event.total)
-            if len(global_statistic) == config.num_processes:
-                print_full_report(logger, config.num_processes, config.num_events, global_statistic)
-                event_bus.broadcast(ShutdownEvent(), BroadcastConfig(filter_endpoint=ROOT_ENDPOINT))
-                event_bus.stop()
-                break
-
-    @staticmethod
     def launch(config: ReportingProcessConfig) -> None:
         logging.basicConfig(level=logging.INFO, format='%(message)s')
         logger = logging.getLogger('reporting')
 
         loop = asyncio.get_event_loop()
-        event_bus = Endpoint()
-        event_bus.start_serving_nowait(ConnectionConfig.from_name(REPORTER_ENDPOINT))
-        event_bus.connect_to_endpoints_blocking(ConnectionConfig.from_name(ROOT_ENDPOINT))
+        loop.run_until_complete(ReportingProcess.worker(logger, config))
 
-        loop.run_until_complete(ReportingProcess.worker(event_bus, logger, config))
+    @staticmethod
+    async def worker(logger: logging.Logger, config: ReportingProcessConfig) -> None:
+        event_bus = Endpoint()
+        await event_bus.start_serving(ConnectionConfig.from_name(REPORTER_ENDPOINT))
+        await event_bus.connect_to_endpoints(ConnectionConfig.from_name(ROOT_ENDPOINT))
+
+        global_statistic = GlobalStatistic()
+        events = event_bus.stream(TotalRecordedEvent, num_events=config.num_processes)
+        async for event in events:
+            global_statistic.add(event.total)
+
+        print_full_report(logger, config.num_processes, config.num_events, global_statistic)
+        await event_bus.broadcast(
+            ShutdownEvent(),
+            BroadcastConfig(filter_endpoint=ROOT_ENDPOINT)
+        )
+        event_bus.stop()

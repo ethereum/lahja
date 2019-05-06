@@ -155,22 +155,15 @@ class Endpoint:
 
         return self._has_snappy_support
 
-    def start_serving_nowait(self,
-                             connection_config: ConnectionConfig,
-                             loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    async def start_serving(self, connection_config: ConnectionConfig) -> None:
         """
-        Start serving this :class:`~lahja.endpoint.Endpoint` so that it can receive events. It is
-        not guaranteed that the :class:`~lahja.endpoint.Endpoint` is fully ready after this method
-        returns. Use :meth:`~lahja.endpoint.Endpoint.start_serving` or combine with
-        :meth:`~lahja.endpoint.Endpoint.wait_until_serving`
+        Start serving this :class:`~lahja.endpoint.Endpoint` so that it can receive events. Await
+        until the :class:`~lahja.endpoint.Endpoint` is ready.
         """
-        if loop is None:
-            loop = asyncio.get_event_loop()
-
         self._name = connection_config.name
         self._ipc_path = connection_config.path
         self._create_external_api(self._ipc_path)
-        self._loop = loop
+        self._loop = asyncio.get_event_loop()
         self._internal_loop_running = asyncio.Event(loop=self.event_loop)
         self._receiving_loop_running = asyncio.Event(loop=self.event_loop)
         self._internal_queue = asyncio.Queue(loop=self.event_loop)
@@ -181,14 +174,6 @@ class Endpoint:
 
         self._running = True
 
-    async def start_serving(self,
-                            connection_config: ConnectionConfig,
-                            loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
-        """
-        Start serving this :class:`~lahja.endpoint.Endpoint` so that it can receive events. Await
-        until the :class:`~lahja.endpoint.Endpoint` is ready.
-        """
-        self.start_serving_nowait(connection_config, loop)
         await self.wait_until_serving()
 
     async def wait_until_serving(self) -> None:
@@ -358,12 +343,23 @@ class Endpoint:
         self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
         self._internal_queue.put_nowait((TRANSPARENT_EVENT, None))
 
-    def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
+    async def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         """
         Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus. Takes
         an optional second parameter of :class:`~lahja.misc.BroadcastConfig` to decide
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
+        """
+        self.broadcast_nowait(item, config)
+
+    def broadcast_nowait(self,
+                         item: BaseEvent,
+                         config: Optional[BroadcastConfig] = None) -> None:
+        """
+        A non-async `broadcast()` (see the docstring for `broadcast()` for more)
+
+        Instead of blocking the calling coroutine this function schedules the broadcast
+        and immediately returns.
         """
         item._origin = self.name
         if config is not None and config.internal:
@@ -396,7 +392,7 @@ class Endpoint:
         future: asyncio.Future = asyncio.Future(loop=self.event_loop)
         self._futures[item._id] = future
 
-        self.broadcast(item, config)
+        await self.broadcast(item, config)
 
         future.add_done_callback(functools.partial(self._remove_cancelled_future, item._id))
 
