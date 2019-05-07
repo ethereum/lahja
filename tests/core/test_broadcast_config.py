@@ -42,6 +42,10 @@ async def test_broadcasts_to_all_endpoints(
     # Ensure the registration was cleaned up
     assert item._id not in endpoint3._futures
 
+    endpoint1.stop()
+    endpoint2.stop()
+    endpoint3.stop()
+
 
 @pytest.mark.asyncio
 async def test_broadcasts_to_specific_endpoint(

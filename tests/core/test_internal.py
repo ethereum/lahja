@@ -28,7 +28,7 @@ async def test_internal_propagation(pair_of_endpoints: Tuple[Endpoint, Endpoint]
             )
             await asyncio.sleep(0.01)
 
-    asyncio.ensure_future(broadcast_dummies())
+    broadcast_coro = asyncio.ensure_future(broadcast_dummies())
 
     e1_task = asyncio.ensure_future(endpoint1.wait_for(DummyResponse))
     # We expect that this will never receive an answer
@@ -42,3 +42,7 @@ async def test_internal_propagation(pair_of_endpoints: Tuple[Endpoint, Endpoint]
     assert e2_task not in done
     assert e2_task in pending
     assert e1_task not in pending
+
+    # clean up
+    broadcast_coro.cancel()
+    e2_task.cancel()

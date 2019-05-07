@@ -24,3 +24,10 @@ class UnexpectedResponse(LahjaError):
     Raised when the type of a response did not match the ``expected_response_type``.
     """
     pass
+
+
+class ReaderAtEof(LahjaError):
+    """
+    Raised by RemoteEndpoint when the remote has closed the connection.
+    """
+    pass

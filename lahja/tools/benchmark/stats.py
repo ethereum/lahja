@@ -19,19 +19,6 @@ class LocalStatistic:
         self._entries.append(entry)
 
     def crunch(self, caption: str) -> Total:
-        if len(self._entries) == 0:
-            return Total(
-                caption,
-                num_total=0,
-                duration_slowest=0,
-                duration_fastest=0,
-                first_sent=0,
-                last_received=0,
-                total_duration=0,
-                total_aggregated_time=0,
-                duration_avg=0,
-            )
-
         crunched_entries = []
         for entry in self._entries:
             crunched_entries.append(

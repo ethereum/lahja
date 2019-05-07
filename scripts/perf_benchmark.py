@@ -3,6 +3,7 @@ import asyncio
 import multiprocessing
 import os
 import signal
+import time
 
 from lahja import (
     ConnectionConfig,
@@ -12,6 +13,7 @@ from lahja import (
 from lahja.tools.benchmark.constants import (
     REPORTER_ENDPOINT,
     ROOT_ENDPOINT,
+    DRIVER_ENDPOINT,
 )
 from lahja.tools.benchmark.process import (
     ConsumerProcess,
@@ -47,17 +49,16 @@ async def run():
 
     consumer_endpoint_configs = create_consumer_endpoint_configs(args.num_processes)
 
+    (
+        config.path.unlink() for config in
+        consumer_endpoint_configs + tuple(
+            ConnectionConfig.from_name(name)
+            for name in (ROOT_ENDPOINT, REPORTER_ENDPOINT, DRIVER_ENDPOINT)
+        )
+    )
+
     root = Endpoint()
     await root.start_serving(ConnectionConfig.from_name(ROOT_ENDPOINT))
-
-    # In this benchmark, this is the only process that is flooding events
-    driver_config = DriverProcessConfig(
-        connected_endpoints=consumer_endpoint_configs,
-        num_events=args.num_events,
-        throttle=args.throttle,
-        payload_bytes=args.payload_bytes,
-    )
-    driver = DriverProcess(driver_config)
 
     # The reporter process is collecting statistical events from all consumer processes
     # For some reason, doing this work in the main process didn't end so well which is
@@ -70,6 +71,7 @@ async def run():
         payload_bytes=args.payload_bytes,
     )
     reporter = ReportingProcess(reporting_config)
+    reporter.start()
 
     for n in range(args.num_processes):
         consumer_process = ConsumerProcess(
@@ -78,9 +80,18 @@ async def run():
         )
         consumer_process.start()
 
-    reporter.start()
+    # In this benchmark, this is the only process that is flooding events
+    driver_config = DriverProcessConfig(
+        connected_endpoints=consumer_endpoint_configs,
+        num_events=args.num_events,
+        throttle=args.throttle,
+        payload_bytes=args.payload_bytes,
+    )
+    driver = DriverProcess(driver_config)
     driver.start()
+
     await root.wait_for(ShutdownEvent)
+    driver.stop()
     root.stop()
 
 
