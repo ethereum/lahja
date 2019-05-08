@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+v0.12.0
+-------
+
+- Change IPC backend from multiprocessing to asyncio
+- Endpoint.broadcast() is now async
+- Endpoint.broadcast_nowait() now exists, it schedules the message to be broadcast
+- Endpoint.start_serving_nowait() no longer exists
+- Endpoint.connect_to_endpoints_blocking() no longer exists
+- Endpoint.stop() must be called or else some coroutines will be orphaned
+- Endpoint can only be used from one event loop. It will remember the current event loop
+  when an async method is first called, and throw an exception if another of its async
+  methods is called from a different event loop.
+- Messages will be compressed if python-snappy is installed
+- Lahja previously silently dropped some exceptions, they are now propogated up
+
 v0.11.2
 -------
 
