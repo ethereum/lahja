@@ -1,7 +1,8 @@
-is_snappy_available: bool
 
-try:
-    import snappy  # noqa: F401
-    is_snappy_available = True
-except ModuleNotFoundError:
-    is_snappy_available = False
+
+def check_has_snappy_support() -> bool:
+    try:
+        import snappy  # noqa: F401
+        return True
+    except ModuleNotFoundError:
+        return False

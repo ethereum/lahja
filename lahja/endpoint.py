@@ -29,6 +29,10 @@ from typing import (  # noqa: F401
 )
 import uuid
 
+from lahja._snappy import (
+    check_has_snappy_support,
+)
+
 from ._utils import (
     wait_for_path,
 )
@@ -140,8 +144,6 @@ class Endpoint:
 
     _loop: Optional[asyncio.AbstractEventLoop]
 
-    _has_snappy_support: Optional[bool] = None
-
     def __init__(self) -> None:
         self._connected_endpoints: Dict[str, RemoteEndpoint] = {}
         self._futures: Dict[Optional[str], asyncio.Future] = {}
@@ -195,12 +197,10 @@ class Endpoint:
     def name(self) -> str:
         return self._name
 
-    @property
-    def has_snappy_support(self) -> bool:
-        if self._has_snappy_support is None:
-            from lahja._snappy import is_snappy_available
-            self._has_snappy_support = is_snappy_available
-        return self._has_snappy_support
+    # This property gets assigned during class creation.  This should be ok
+    # since snappy support is defined as the module being importable and that
+    # should not change during the lifecycle of the python process.
+    has_snappy_support = check_has_snappy_support()
 
     @check_event_loop
     async def start_serving(self, connection_config: ConnectionConfig) -> None:
