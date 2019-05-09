@@ -198,12 +198,8 @@ class Endpoint:
     @property
     def has_snappy_support(self) -> bool:
         if self._has_snappy_support is None:
-            try:
-                import snappy  # noqa: F401
-                self._has_snappy_support = True
-            except ModuleNotFoundError:
-                self._has_snappy_support = False
-
+            from lahja._snappy import is_snappy_available
+            self._has_snappy_support = is_snappy_available
         return self._has_snappy_support
 
     @check_event_loop
