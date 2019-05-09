@@ -66,17 +66,17 @@ def to_readable_timestamp(timestamp: float) -> str:
 
 
 def print_entry_line(logger: Logger, total: Total) -> None:
-        logger.info('|{:^19}|{:^16}|{:^16}|{:^16}|{:^16.5f}|{:^16.5f}|{:^16.5f}|{:^16.5f}|{:^23.5f}|'.format(  # noqa: E501
-            total.caption,
-            total.num_total,
-            to_readable_timestamp(total.first_sent),
-            to_readable_timestamp(total.last_received),
-            total.duration_fastest,
-            total.duration_slowest,
-            total.duration_avg,
-            total.total_duration,
-            total.total_aggregated_time,
-        ))
+    logger.info('|{:^19}|{:^16}|{:^16}|{:^16}|{:^16.5f}|{:^16.5f}|{:^16.5f}|{:^16.5f}|{:^23.5f}|'.format(  # noqa: E501
+        total.caption,
+        total.num_total,
+        to_readable_timestamp(total.first_sent),
+        to_readable_timestamp(total.last_received),
+        total.duration_fastest,
+        total.duration_slowest,
+        total.duration_avg,
+        total.total_duration,
+        total.total_aggregated_time,
+    ))
 
 
 def print_full_report(logger: Logger,

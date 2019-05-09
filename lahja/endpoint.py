@@ -7,18 +7,15 @@ import functools
 import logging
 import pathlib
 import pickle
+import time
 import traceback
-from types import (
-    TracebackType,
-)
 from typing import (  # noqa: F401
     Any,
     AsyncGenerator,
+    AsyncIterable,
     Callable,
     Dict,
-    Iterable,
     List,
-    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -29,13 +26,20 @@ from typing import (  # noqa: F401
 )
 import uuid
 
+from async_generator import (
+    asynccontextmanager,
+)
+
 from lahja._snappy import (
     check_has_snappy_support,
 )
-
-from ._utils import (
-    wait_for_path,
+from lahja.base import (
+    BaseEndpoint,
+    TResponse,
+    TStreamEvent,
+    TSubscribeEvent,
 )
+
 from .exceptions import (
     ConnectionAttemptRejected,
     NotServing,
@@ -46,43 +50,41 @@ from .misc import (
     TRANSPARENT_EVENT,
     BaseEvent,
     BaseRequestResponseEvent,
+    Broadcast,
     BroadcastConfig,
+    ConnectionConfig,
     Subscription,
+)
+from .typing import (
+    AsyncEndpointContextManager,
 )
 
 
-class ConnectionConfig(NamedTuple):
+async def wait_for_path(path: pathlib.Path, timeout: int = 2) -> None:
     """
-    Configuration class needed to establish :class:`~lahja.endpoint.Endpoint` connections.
+    Wait for the path to appear at ``path``
     """
-    name: str
-    path: pathlib.Path
+    start_at = time.monotonic()
+    while time.monotonic() - start_at < timeout:
+        if path.exists():
+            return
+        await asyncio.sleep(0.05)
 
-    @classmethod
-    def from_name(cls, name: str, base_path: Optional[pathlib.Path] = None) -> 'ConnectionConfig':
-        if base_path is None:
-            return cls(name=name, path=pathlib.Path(f"{name}.ipc"))
-        elif base_path.is_dir():
-            return ConnectionConfig(name=name, path=base_path / f"{name}.ipc")
-        else:
-            raise TypeError("Provided `base_path` must be a directory")
-
-
-class Broadcast(NamedTuple):
-    event: Union[BaseEvent, bytes]
-    config: Optional[BroadcastConfig]
+    raise TimeoutError(f"IPC socket file {path} has not appeared in {timeout} seconds")
 
 
 class RemoteEndpoint:
+    logger = logging.getLogger('lahja.endpoint.RemoteEndpoint')
+
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         self.writer = writer
         self.reader = reader
         self._drain_lock = asyncio.Lock()
 
-    @staticmethod
-    async def connect_to(path: str) -> 'RemoteEndpoint':
+    @classmethod
+    async def connect_to(cls, path: str) -> 'RemoteEndpoint':
         reader, writer = await asyncio.open_unix_connection(path)
-        return RemoteEndpoint(reader, writer)
+        return cls(reader, writer)
 
     async def send_message(self, message: Broadcast) -> None:
         await _write_message(self.writer, message)
@@ -124,13 +126,7 @@ async def _write_message(writer: StreamWriter, message: Broadcast) -> None:
 TFunc = TypeVar('TFunc', bound=Callable[..., Any])
 
 
-TStreamEvent = TypeVar('TStreamEvent', bound=BaseEvent)
-TWaitForEvent = TypeVar('TWaitForEvent', bound=BaseEvent)
-TSubscribeEvent = TypeVar('TSubscribeEvent', bound=BaseEvent)
-TResponse = TypeVar('TResponse', bound=BaseEvent)
-
-
-class Endpoint:
+class Endpoint(BaseEndpoint):
     """
     The :class:`~lahja.endpoint.Endpoint` enables communication between different processes
     as well as within a single process via various event-driven APIs.
@@ -138,7 +134,6 @@ class Endpoint:
 
     _name: str
     _ipc_path: pathlib.Path
-    _logger: Optional[logging.Logger] = None
 
     _receiving_queue: 'asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]'
     _receiving_loop_running: asyncio.Event
@@ -160,9 +155,6 @@ class Endpoint:
 
         self._running = False
         self._loop = None
-
-    def __reduce__(self) -> None:  # type: ignore
-        raise Exception('Endpoints cannot be pickled')
 
     @property
     def ipc_path(self) -> pathlib.Path:
@@ -191,13 +183,6 @@ class Endpoint:
 
             return func(self, *args, **kwargs)
         return cast(TFunc, run)
-
-    @property
-    def logger(self) -> logging.Logger:
-        if self._logger is None:
-            self._logger = logging.getLogger('lahja.endpoint.Endpoint')
-
-        return self._logger
 
     @property
     def name(self) -> str:
@@ -336,6 +321,9 @@ class Endpoint:
 
     async def _await_connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
         await wait_for_path(endpoint.path)
+        # sleep for a moment to give the server time to be ready to accept
+        # connections
+        await asyncio.sleep(0.01)
         await self.connect_to_endpoint(endpoint)
 
     async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
@@ -387,14 +375,22 @@ class Endpoint:
         self._server.close()
         self.ipc_path.unlink()
 
-    def __enter__(self) -> 'Endpoint':
-        return self
+    @asynccontextmanager  # type: ignore
+    async def run(self) -> AsyncIterable['Endpoint']:
+        try:
+            yield self
+        finally:
+            self.stop()
+    run = cast(Callable[[None], AsyncEndpointContextManager], run)
 
-    def __exit__(self,
-                 exc_type: Optional[Type[BaseException]],
-                 exc_value: Optional[BaseException],
-                 exc_tb: Optional[TracebackType]) -> None:
-        self.stop()
+    @classmethod
+    @asynccontextmanager  # type: ignore
+    async def serve(cls, config: ConnectionConfig) -> AsyncIterable['Endpoint']:
+        endpoint = cls()
+        async with endpoint.run():
+            await endpoint.start_serving(config)
+            yield endpoint
+    serve = cast(Callable[[None], AsyncEndpointContextManager], serve)
 
     async def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         """
@@ -532,11 +528,3 @@ class Endpoint:
                     # mypy cannot reconcile BaseEvent with TStreamEvent
                     self._queues[event_type].remove(queue)  # type: ignore
                     break
-
-    async def wait_for(self, event_type: Type[TWaitForEvent]) -> TWaitForEvent:  # type: ignore
-        """
-        Wait for a single instance of an event that matches the specified event type.
-        """
-        # mypy thinks we are missing a return statement but this seems fair to do
-        async for event in self.stream(event_type, num_events=1):
-            return event

@@ -14,8 +14,8 @@ extras_require = {
         "tox>=2.9.1,<3",
     ],
     'lint': [
-        "flake8==3.4.1",
-        "isort==4.3.4",
+        "flake8==3.7.7",
+        "isort==4.3.18",
         "mypy==0.701",
     ],
     'doc': [
@@ -51,7 +51,9 @@ setup(
     author_email='christoph.burgdorf@gmail.com',
     url='https://github.com/ethereum/lahja',
     include_package_data=True,
-    install_requires=[],
+    install_requires=[
+        "async-generator>=1.10,<2",
+    ],
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
     extras_require=extras_require,
