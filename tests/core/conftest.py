@@ -1,7 +1,3 @@
-from typing import (
-    AsyncGenerator,
-    Tuple,
-)
 import uuid
 
 import pytest
@@ -11,17 +7,14 @@ from lahja import (
     Endpoint,
 )
 
-EndpointPair = Tuple[Endpoint, Endpoint]
-EndpointTriplet = Tuple[Endpoint, Endpoint, Endpoint]
 
-
-def generate_unique_name() -> str:
+def generate_unique_name():
     # We use unique names to avoid clashing of IPC pipes
     return str(uuid.uuid4())
 
 
 @pytest.fixture(scope='function')
-async def endpoint() -> AsyncGenerator[Endpoint, None]:
+async def endpoint():
 
     endpoint = Endpoint()
     await endpoint.start_serving(ConnectionConfig.from_name(generate_unique_name()))
@@ -38,7 +31,7 @@ async def endpoint() -> AsyncGenerator[Endpoint, None]:
 
 
 @pytest.fixture(scope='function')
-async def pair_of_endpoints() -> AsyncGenerator[EndpointPair, None]:
+async def pair_of_endpoints():
 
     endpoint1 = Endpoint()
     endpoint2 = Endpoint()
@@ -58,7 +51,7 @@ async def pair_of_endpoints() -> AsyncGenerator[EndpointPair, None]:
 
 
 @pytest.fixture(scope="function")
-async def triplet_of_endpoints() -> AsyncGenerator[EndpointTriplet, None]:
+async def triplet_of_endpoints():
 
     endpoint1 = Endpoint()
     endpoint2 = Endpoint()

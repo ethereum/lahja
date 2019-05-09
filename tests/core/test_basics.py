@@ -3,9 +3,6 @@ import pickle
 
 import pytest
 
-from _pytest.capture import (
-    SysCapture,
-)
 from helpers import (
     DummyRequest,
     DummyRequestPair,
@@ -19,7 +16,7 @@ from lahja import (
 
 
 @pytest.mark.asyncio
-async def test_request(endpoint: Endpoint) -> None:
+async def test_request(endpoint):
     endpoint.subscribe(
         DummyRequestPair,
         lambda ev: endpoint.broadcast_nowait(
@@ -40,7 +37,7 @@ async def test_request(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_can_get_cancelled(endpoint: Endpoint) -> None:
+async def test_request_can_get_cancelled(endpoint):
 
     item = DummyRequestPair()
     with pytest.raises(asyncio.TimeoutError):
@@ -51,7 +48,7 @@ async def test_request_can_get_cancelled(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_response_must_match(endpoint: Endpoint) -> None:
+async def test_response_must_match(endpoint):
     endpoint.subscribe(
         DummyRequestPair,
         lambda ev: endpoint.broadcast_nowait(
@@ -66,10 +63,10 @@ async def test_response_must_match(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_with_break(endpoint: Endpoint) -> None:
+async def test_stream_with_break(endpoint):
     stream_counter = 0
 
-    async def stream_response() -> None:
+    async def stream_response():
         async for event in endpoint.stream(DummyRequest):
             # Accessing `ev.property_of_dummy_request` here allows us to validate
             # mypy has the type information we think it has. We run mypy on the tests.
@@ -93,10 +90,10 @@ async def test_stream_with_break(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_with_num_events(endpoint: Endpoint) -> None:
+async def test_stream_with_num_events(endpoint):
     stream_counter = 0
 
-    async def stream_response() -> None:
+    async def stream_response():
         nonlocal stream_counter
         async for event in endpoint.stream(DummyRequest, num_events=2):
             # Accessing `ev.property_of_dummy_request` here allows us to validate
@@ -117,12 +114,12 @@ async def test_stream_with_num_events(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_can_get_cancelled(endpoint: Endpoint) -> None:
+async def test_stream_can_get_cancelled(endpoint):
     stream_counter = 0
 
     async_generator = endpoint.stream(DummyRequest)
 
-    async def stream_response() -> None:
+    async def stream_response():
         nonlocal stream_counter
         async for event in async_generator:
             # Accessing `ev.property_of_dummy_request` here allows us to validate
@@ -131,7 +128,7 @@ async def test_stream_can_get_cancelled(endpoint: Endpoint) -> None:
             stream_counter += 1
             await asyncio.sleep(0.1)
 
-    async def cancel_soon() -> None:
+    async def cancel_soon():
         while True:
             await asyncio.sleep(0.01)
             if stream_counter == 2:
@@ -154,10 +151,10 @@ async def test_stream_can_get_cancelled(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_cancels_when_parent_task_is_cancelled(endpoint: Endpoint) -> None:
+async def test_stream_cancels_when_parent_task_is_cancelled(endpoint):
     stream_counter = 0
 
-    async def stream_response() -> None:
+    async def stream_response():
         nonlocal stream_counter
         async for event in endpoint.stream(DummyRequest):
             # Accessing `ev.property_of_dummy_request` here allows us to validate
@@ -168,7 +165,7 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint: Endpoint) 
 
     task = asyncio.ensure_future(stream_response())
 
-    async def cancel_soon() -> None:
+    async def cancel_soon():
         while True:
             await asyncio.sleep(0.01)
             if stream_counter == 2:
@@ -187,10 +184,10 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint: Endpoint) 
 
 
 @pytest.mark.asyncio
-async def test_wait_for(endpoint: Endpoint) -> None:
+async def test_wait_for(endpoint):
     received = None
 
-    async def stream_response() -> None:
+    async def stream_response():
         request = await endpoint.wait_for(DummyRequest)
         # Accessing `ev.property_of_dummy_request` here allows us to validate
         # mypy has the type information we think it has. We run mypy on the tests.
@@ -206,7 +203,7 @@ async def test_wait_for(endpoint: Endpoint) -> None:
 
 
 @pytest.mark.asyncio
-async def test_wait_for_can_get_cancelled(endpoint: Endpoint) -> None:
+async def test_wait_for_can_get_cancelled(endpoint):
 
     with pytest.raises(asyncio.TimeoutError):
         await asyncio.wait_for(endpoint.wait_for(DummyRequest), 0.01)
@@ -216,18 +213,17 @@ async def test_wait_for_can_get_cancelled(endpoint: Endpoint) -> None:
 
 
 class RemoveItem(BaseEvent):
-    def __init__(self, item: int) -> None:
+    def __init__(self, item):
         super().__init__()
         self.item = item
 
 
 @pytest.mark.asyncio
-async def test_exceptions_dont_stop_processing(capsys: SysCapture,
-                                               endpoint: Endpoint) -> None:
+async def test_exceptions_dont_stop_processing(capsys, endpoint):
 
     the_set = {1, 3}
 
-    def handle(message: RemoveItem) -> None:
+    def handle(message):
         the_set.remove(message.item)
 
     endpoint.subscribe(RemoveItem, handle)
@@ -254,7 +250,7 @@ async def test_exceptions_dont_stop_processing(capsys: SysCapture,
     assert the_set == set()
 
 
-def test_pickle_fails() -> None:
+def test_pickle_fails():
     endpoint = Endpoint()
 
     with pytest.raises(Exception):

@@ -55,7 +55,7 @@ class ConnectionConfig(NamedTuple):
     path: pathlib.Path
 
     @classmethod
-    def from_name(cls, name: str, base_path: Optional[pathlib.Path]=None) -> 'ConnectionConfig':
+    def from_name(cls, name: str, base_path: Optional[pathlib.Path] = None) -> 'ConnectionConfig':
         if base_path is None:
             return cls(name=name, path=pathlib.Path(f"{name}.ipc"))
         elif base_path.is_dir():
@@ -117,7 +117,13 @@ async def _write_message(writer: StreamWriter, message: Broadcast) -> None:
     writer.write(pickled)
 
 
-TFunc = TypeVar('TFunc', bound=Callable)
+TFunc = TypeVar('TFunc', bound=Callable[..., Any])
+
+
+TStreamEvent = TypeVar('TStreamEvent', bound=BaseEvent)
+TWaitForEvent = TypeVar('TWaitForEvent', bound=BaseEvent)
+TSubscribeEvent = TypeVar('TSubscribeEvent', bound=BaseEvent)
+TResponse = TypeVar('TResponse', bound=BaseEvent)
 
 
 class Endpoint:
@@ -130,10 +136,10 @@ class Endpoint:
     _ipc_path: pathlib.Path
     _logger: Optional[logging.Logger] = None
 
-    _receiving_queue: asyncio.Queue
+    _receiving_queue: 'asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]'
     _receiving_loop_running: asyncio.Event
 
-    _internal_queue: asyncio.Queue
+    _internal_queue: 'asyncio.Queue[Tuple[BaseEvent, Optional[BroadcastConfig]]]'
     _internal_loop_running: asyncio.Event
 
     _server_running: asyncio.Event
@@ -144,11 +150,11 @@ class Endpoint:
 
     def __init__(self) -> None:
         self._connected_endpoints: Dict[str, RemoteEndpoint] = {}
-        self._futures: Dict[Optional[str], asyncio.Future] = {}
+        self._futures: Dict[Optional[str], 'asyncio.Future[BaseEvent]'] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
-        self._queues: Dict[Type[BaseEvent], List[asyncio.Queue]] = {}
+        self._queues: Dict[Type[BaseEvent], List['asyncio.Queue[BaseEvent]']] = {}
 
-        self._child_coros: Set[asyncio.Future] = set()
+        self._child_coros: Set[asyncio.Future[Any]] = set()
 
         self._running = False
         self._loop = None
@@ -350,31 +356,23 @@ class Endpoint:
     def is_connected_to(self, endpoint_name: str) -> bool:
         return endpoint_name in self._connected_endpoints
 
-    def _process_item(self, item: BaseEvent, config: BroadcastConfig) -> None:
+    def _process_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> None:
         if item is TRANSPARENT_EVENT:
             return
 
-        has_config = config is not None
-
         event_type = type(item)
-        in_futures = has_config and config.filter_event_id in self._futures
-        in_queue = event_type in self._queues
-        in_handler = event_type in self._handler
 
-        if not in_queue and not in_handler and not in_futures:
-            return
-
-        if in_futures:
+        if config is not None and config.filter_event_id in self._futures:
             future = self._futures[config.filter_event_id]
             if not future.done():
                 future.set_result(item)
             self._futures.pop(config.filter_event_id, None)
 
-        if in_queue:
+        if event_type in self._queues:
             for queue in self._queues[event_type]:
                 queue.put_nowait(item)
 
-        if in_handler:
+        if event_type in self._handler:
             for handler in self._handler[event_type]:
                 handler(item)
 
@@ -448,8 +446,6 @@ class Endpoint:
         """
         asyncio.ensure_future(self.broadcast(item, config))
 
-    TResponse = TypeVar('TResponse', bound=BaseEvent)
-
     @check_event_loop
     async def request(self,
                       item: BaseRequestResponseEvent[TResponse],
@@ -464,8 +460,10 @@ class Endpoint:
         item._origin = self.name
         item._id = str(uuid.uuid4())
 
-        future: asyncio.Future = asyncio.Future()
-        self._futures[item._id] = future
+        future: 'asyncio.Future[TResponse]' = asyncio.Future()
+        self._futures[item._id] = future  # type: ignore
+        # mypy can't reconcile the TResponse with the declared type of
+        # `self._futures`.
 
         await self.broadcast(item, config)
 
@@ -481,9 +479,7 @@ class Endpoint:
 
         return result
 
-    TSubscribeEvent = TypeVar('TSubscribeEvent', bound=BaseEvent)
-
-    def _remove_cancelled_future(self, id: str, future: asyncio.Future) -> None:
+    def _remove_cancelled_future(self, id: str, future: asyncio.Future[Any]) -> None:
         try:
             future.exception()
         except asyncio.CancelledError:
@@ -506,8 +502,6 @@ class Endpoint:
 
         return Subscription(lambda: self._handler[event_type].remove(casted_handler))
 
-    TStreamEvent = TypeVar('TStreamEvent', bound=BaseEvent)
-
     async def stream(self,
                      event_type: Type[TStreamEvent],
                      num_events: Optional[int] = None) -> AsyncGenerator[TStreamEvent, None]:
@@ -517,21 +511,20 @@ class Endpoint:
         An optional ``num_events`` parameter can be passed to stop streaming after a maximum amount
         of events was received.
         """
-        queue: asyncio.Queue = asyncio.Queue()
+        queue: 'asyncio.Queue[TStreamEvent]' = asyncio.Queue()
 
         if event_type not in self._queues:
             self._queues[event_type] = []
 
-        self._queues[event_type].append(queue)
+        # mypy cannot reconcile BaseEvent with TStreamEvent
+        self._queues[event_type].append(queue)  # type: ignore
         i = None if num_events is None else 0
         while True:
             try:
                 yield await queue.get()
-            except GeneratorExit:
-                self._queues[event_type].remove(queue)
-                break
-            except asyncio.CancelledError:
-                self._queues[event_type].remove(queue)
+            except (GeneratorExit, asyncio.CancelledError):
+                # mypy cannot reconcile BaseEvent with TStreamEvent
+                self._queues[event_type].remove(queue)  # type: ignore
                 break
             else:
                 if i is None:
@@ -540,10 +533,9 @@ class Endpoint:
                 i += 1
 
                 if i >= cast(int, num_events):
-                    self._queues[event_type].remove(queue)
+                    # mypy cannot reconcile BaseEvent with TStreamEvent
+                    self._queues[event_type].remove(queue)  # type: ignore
                     break
-
-    TWaitForEvent = TypeVar('TWaitForEvent', bound=BaseEvent)
 
     async def wait_for(self, event_type: Type[TWaitForEvent]) -> TWaitForEvent:  # type: ignore
         """

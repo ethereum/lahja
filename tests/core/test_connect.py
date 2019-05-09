@@ -11,7 +11,7 @@ from lahja import (
 
 
 @pytest.mark.asyncio
-async def test_can_not_connect_conflicting_names() -> None:
+async def test_can_not_connect_conflicting_names():
 
     own = ConnectionConfig.from_name(generate_unique_name())
     endpoint = Endpoint()
@@ -29,7 +29,7 @@ async def test_can_not_connect_conflicting_names() -> None:
 
 
 @pytest.mark.asyncio
-async def test_rejects_duplicates_when_connecting() -> None:
+async def test_rejects_duplicates_when_connecting():
 
     own = ConnectionConfig.from_name(generate_unique_name())
     endpoint = Endpoint()
@@ -42,7 +42,7 @@ async def test_rejects_duplicates_when_connecting() -> None:
 
 
 @pytest.mark.asyncio
-async def test_rejects_duplicates_when_connecting_nowait() -> None:
+async def test_rejects_duplicates_when_connecting_nowait():
 
     own = ConnectionConfig.from_name(generate_unique_name())
     endpoint = Endpoint()

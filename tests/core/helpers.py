@@ -11,7 +11,6 @@ from cytoolz import (
 from lahja import (
     BaseEvent,
     BaseRequestResponseEvent,
-    Endpoint,
 )
 
 
@@ -22,7 +21,7 @@ class DummyRequest(BaseEvent):
 class DummyResponse(BaseEvent):
     property_of_dummy_response = None
 
-    def __init__(self, something: Any) -> None:
+    def __init__(self, something):
         pass
 
 
@@ -30,19 +29,19 @@ class DummyRequestPair(BaseRequestResponseEvent[DummyResponse]):
     property_of_dummy_request_pair = None
 
     @staticmethod
-    def expected_response_type() -> Type[DummyResponse]:
+    def expected_response_type():
         return DummyResponse
 
 
 class Tracker:
 
-    def __init__(self) -> None:
-        self._tracker: Set[int] = set()
+    def __init__(self):
+        self._tracker = set()
 
-    def exists(self, track_id: int) -> bool:
+    def exists(self, track_id):
         return track_id in self._tracker
 
-    def track_and_run(self, track_id: int, continue_fn: Callable[..., Any]) -> Any:
+    def track_and_run(self, track_id, continue_fn):
         """
         Add ``track_id`` to the internal accounting and continue with ``continue_fn``
         """
@@ -51,9 +50,9 @@ class Tracker:
 
     @curry
     def track_and_broadcast_dummy(self,
-                                  track_id: int,
-                                  endpoint: Endpoint,
-                                  ev: DummyRequestPair) -> None:
+                                  track_id,
+                                  endpoint,
+                                  ev):
         self.track_and_run(
             track_id,
             lambda: endpoint.broadcast_nowait(
