@@ -1,4 +1,8 @@
-from typing import AsyncIterable, Type
+from typing import (
+    AsyncIterable,
+    Type,
+)
+
 from lahja import (
     BaseEvent,
     BaseRequestResponseEvent,
@@ -27,3 +31,9 @@ async def verify_stream_type(endpoint: Endpoint) -> AsyncIterable[Event]:
 
 async def verify_request_response_type(endpoint: Endpoint) -> Event:
     return await endpoint.request(RequestEvent())
+
+
+async def verify_subscribe_type(endpoint: Endpoint) -> None:
+    def handler(event: Event) -> None:
+        pass
+    endpoint.subscribe(Event, handler)

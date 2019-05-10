@@ -154,7 +154,7 @@ class Endpoint:
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List['asyncio.Queue[BaseEvent]']] = {}
 
-        self._child_coros: Set[asyncio.Future[Any]] = set()
+        self._child_coros: Set['asyncio.Future[Any]'] = set()
 
         self._running = False
         self._loop = None
@@ -479,7 +479,7 @@ class Endpoint:
 
         return result
 
-    def _remove_cancelled_future(self, id: str, future: asyncio.Future[Any]) -> None:
+    def _remove_cancelled_future(self, id: str, future: 'asyncio.Future[Any]') -> None:
         try:
             future.exception()
         except asyncio.CancelledError:
