@@ -1,6 +1,6 @@
 from .endpoint import (  # noqa: F401
-    Endpoint,
     ConnectionConfig,
+    Endpoint,
 )
 from .exceptions import (  # noqa: F401
     ConnectionAttemptRejected,

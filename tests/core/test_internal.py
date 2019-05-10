@@ -1,7 +1,4 @@
 import asyncio
-from typing import (
-    Tuple,
-)
 
 import pytest
 
@@ -10,16 +7,15 @@ from helpers import (
 )
 from lahja import (
     BroadcastConfig,
-    Endpoint,
 )
 
 
 @pytest.mark.asyncio
-async def test_internal_propagation(pair_of_endpoints: Tuple[Endpoint, Endpoint]) -> None:
+async def test_internal_propagation(pair_of_endpoints):
 
     endpoint1, endpoint2 = pair_of_endpoints
 
-    async def broadcast_dummies() -> None:
+    async def broadcast_dummies():
         while True:
             # We are broadcasting internally on endpoint1
             await endpoint1.broadcast(

@@ -1,7 +1,3 @@
-from typing import (
-    Tuple,
-)
-
 import pytest
 
 from helpers import (
@@ -11,13 +7,11 @@ from helpers import (
 )
 from lahja import (
     BroadcastConfig,
-    Endpoint,
 )
 
 
 @pytest.mark.asyncio
-async def test_broadcasts_to_all_endpoints(
-        triplet_of_endpoints: Tuple[Endpoint, Endpoint, Endpoint]) -> None:
+async def test_broadcasts_to_all_endpoints(triplet_of_endpoints):
 
     endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
 
@@ -48,8 +42,7 @@ async def test_broadcasts_to_all_endpoints(
 
 
 @pytest.mark.asyncio
-async def test_broadcasts_to_specific_endpoint(
-        triplet_of_endpoints: Tuple[Endpoint, Endpoint, Endpoint]) -> None:
+async def test_broadcasts_to_specific_endpoint(triplet_of_endpoints):
 
     endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
 

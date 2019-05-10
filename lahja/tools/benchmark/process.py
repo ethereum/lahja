@@ -110,17 +110,6 @@ class ConsumerProcess:
         loop.run_until_complete(ConsumerProcess.worker(name, num_events))
 
     @staticmethod
-    async def gen_with_timeout(generator: AsyncGenerator, timeout: int) -> AsyncGenerator:
-        try:
-            while True:
-                # the asyncio.TimeoutError is the caller's responsibility
-                future = asyncio.ensure_future(generator.__anext__())
-                future.add_done_callback(lambda x: None)
-                yield await asyncio.wait_for(future, timeout=timeout)
-        except StopAsyncIteration:
-            pass
-
-    @staticmethod
     async def worker(name: str, num_events: int) -> None:
         with Endpoint() as event_bus:
             await event_bus.start_serving(ConnectionConfig.from_name(name))

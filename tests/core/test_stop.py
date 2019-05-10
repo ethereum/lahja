@@ -13,7 +13,7 @@ from lahja import (
 
 
 @pytest.mark.asyncio
-async def test_can_stop() -> None:
+async def test_can_stop():
 
     first = ConnectionConfig.from_name(generate_unique_name())
     first_endpoint = Endpoint()
