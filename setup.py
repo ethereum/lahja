@@ -34,12 +34,11 @@ extras_require = {
     ]
 }
 
-extras_require['dev'] = (
-    extras_require['dev'] +
-    extras_require['test'] +
-    extras_require['lint'] +
-    extras_require['doc']
-)
+
+extras_require['dev'].extend(extras_require['test'])
+extras_require['dev'].extend(extras_require['lint'])
+extras_require['dev'].extend(extras_require['doc'])
+
 
 setup(
     name='lahja',
