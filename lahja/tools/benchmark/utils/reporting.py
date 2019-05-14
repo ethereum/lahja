@@ -4,13 +4,18 @@ from logging import (
 )
 import time
 
+from ..backends import (
+    BaseBackend,
+)
 from ..stats import (
     GlobalStatistic,
     Total,
 )
 
 
-def print_global_header(logger: Logger) -> None:
+def print_global_header(logger: Logger, backend: BaseBackend) -> None:
+
+    logger.info(f'{"+++" + backend.name.upper() + "+++":^150}')
     logger.info(f'{"+++Globals+++":^150}')
     logger.info('|{:^19}|{:^16}|{:^23}|{:^20}|{:^16}|{:^16}|{:^16}|'.format(
         'Consumer processes',
@@ -80,11 +85,12 @@ def print_entry_line(logger: Logger, total: Total) -> None:
 
 
 def print_full_report(logger: Logger,
+                      backend: BaseBackend,
                       num_consumer_processes: int,
                       num_events: int,
                       global_statistic: GlobalStatistic) -> None:
 
-    print_global_header(logger)
+    print_global_header(logger, backend)
     print_global_entry(logger, num_consumer_processes, num_events, global_statistic)
 
     print_entry_header(logger)
