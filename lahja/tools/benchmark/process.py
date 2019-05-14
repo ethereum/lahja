@@ -73,8 +73,8 @@ class DriverProcess:
 
     @staticmethod
     async def worker(config: DriverProcessConfig) -> None:
-        with Endpoint() as event_bus:
-            await event_bus.start_serving(ConnectionConfig.from_name(DRIVER_ENDPOINT))
+        conn_config = ConnectionConfig.from_name(DRIVER_ENDPOINT)
+        async with Endpoint.serve(conn_config) as event_bus:
             await event_bus.connect_to_endpoints(*config.connected_endpoints)
 
             counter = itertools.count()
@@ -111,11 +111,9 @@ class ConsumerProcess:
 
     @staticmethod
     async def worker(name: str, num_events: int) -> None:
-        with Endpoint() as event_bus:
-            await event_bus.start_serving(ConnectionConfig.from_name(name))
-            await event_bus.connect_to_endpoints(
-                ConnectionConfig.from_name(REPORTER_ENDPOINT)
-            )
+        conn_config = ConnectionConfig.from_name(name)
+        async with Endpoint.serve(conn_config) as event_bus:
+            await event_bus.connect_to_endpoints(ConnectionConfig.from_name(REPORTER_ENDPOINT))
 
             stats = LocalStatistic()
             events = event_bus.stream(PerfMeasureEvent, num_events=num_events)
@@ -163,8 +161,8 @@ class ReportingProcess:
     @staticmethod
     async def worker(logger: logging.Logger,
                      config: ReportingProcessConfig) -> None:
-        with Endpoint() as event_bus:
-            await event_bus.start_serving(ConnectionConfig.from_name(REPORTER_ENDPOINT))
+        conn_config = ConnectionConfig.from_name(REPORTER_ENDPOINT)
+        async with Endpoint.serve(conn_config) as event_bus:
             await event_bus.connect_to_endpoints(
                 ConnectionConfig.from_name(ROOT_ENDPOINT),
             )

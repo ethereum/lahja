@@ -2,13 +2,18 @@ from abc import (
     ABC,
     abstractmethod,
 )
+from pathlib import (
+    Path,
+)
 from typing import (  # noqa: F401
     Any,
     Callable,
     Generic,
+    NamedTuple,
     Optional,
     Type,
     TypeVar,
+    Union,
 )
 
 
@@ -34,6 +39,15 @@ class BroadcastConfig:
 
         if self.internal and self.filter_endpoint is not None:
             raise ValueError("`internal` can not be used with `filter_endpoint")
+
+    def __str__(self) -> str:
+        return (
+            "BroadcastConfig["
+            f"{'internal' if self.internal else 'external'} / "
+            f"endpoint={self.filter_endpoint if self.filter_endpoint else 'N/A'} / "
+            f"  id={self.filter_event_id if self.filter_event_id else 'N/A'}"
+            "]"
+        )
 
     def allowed_to_receive(self, endpoint: str) -> bool:
         return self.filter_endpoint is None or self.filter_endpoint == endpoint
@@ -84,3 +98,25 @@ class TransparentEvent(BaseEvent):
 
 
 TRANSPARENT_EVENT = TransparentEvent()
+
+
+class ConnectionConfig(NamedTuple):
+    """
+    Configuration class needed to establish :class:`~lahja.endpoint.Endpoint` connections.
+    """
+    name: str
+    path: Path
+
+    @classmethod
+    def from_name(cls, name: str, base_path: Optional[Path] = None) -> 'ConnectionConfig':
+        if base_path is None:
+            return cls(name=name, path=Path(f"{name}.ipc"))
+        elif base_path.is_dir():
+            return cls(name=name, path=base_path / f"{name}.ipc")
+        else:
+            raise TypeError("Provided `base_path` must be a directory")
+
+
+class Broadcast(NamedTuple):
+    event: Union[BaseEvent, bytes]
+    config: Optional[BroadcastConfig]

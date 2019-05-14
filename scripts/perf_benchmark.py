@@ -1,19 +1,15 @@
 import argparse
 import asyncio
 import multiprocessing
-import os
-import signal
-import time
 
 from lahja import (
     ConnectionConfig,
     Endpoint,
 )
-
 from lahja.tools.benchmark.constants import (
+    DRIVER_ENDPOINT,
     REPORTER_ENDPOINT,
     ROOT_ENDPOINT,
-    DRIVER_ENDPOINT,
 )
 from lahja.tools.benchmark.process import (
     ConsumerProcess,
@@ -57,42 +53,40 @@ async def run():
         )
     )
 
-    root = Endpoint()
-    await root.start_serving(ConnectionConfig.from_name(ROOT_ENDPOINT))
-
-    # The reporter process is collecting statistical events from all consumer processes
-    # For some reason, doing this work in the main process didn't end so well which is
-    # why it was moved into a dedicated process. Notice that this will slightly skew results
-    # as the reporter process will also receive events which we don't account for
-    reporting_config = ReportingProcessConfig(
-        num_events=args.num_events,
-        num_processes=args.num_processes,
-        throttle=args.throttle,
-        payload_bytes=args.payload_bytes,
-    )
-    reporter = ReportingProcess(reporting_config)
-    reporter.start()
-
-    for n in range(args.num_processes):
-        consumer_process = ConsumerProcess(
-            create_consumer_endpoint_name(n),
-            args.num_events,
+    root_config = ConnectionConfig.from_name(ROOT_ENDPOINT)
+    async with Endpoint.serve(root_config) as root:
+        # The reporter process is collecting statistical events from all consumer processes
+        # For some reason, doing this work in the main process didn't end so well which is
+        # why it was moved into a dedicated process. Notice that this will slightly skew results
+        # as the reporter process will also receive events which we don't account for
+        reporting_config = ReportingProcessConfig(
+            num_events=args.num_events,
+            num_processes=args.num_processes,
+            throttle=args.throttle,
+            payload_bytes=args.payload_bytes,
         )
-        consumer_process.start()
+        reporter = ReportingProcess(reporting_config)
+        reporter.start()
 
-    # In this benchmark, this is the only process that is flooding events
-    driver_config = DriverProcessConfig(
-        connected_endpoints=consumer_endpoint_configs,
-        num_events=args.num_events,
-        throttle=args.throttle,
-        payload_bytes=args.payload_bytes,
-    )
-    driver = DriverProcess(driver_config)
-    driver.start()
+        for n in range(args.num_processes):
+            consumer_process = ConsumerProcess(
+                create_consumer_endpoint_name(n),
+                args.num_events,
+            )
+            consumer_process.start()
 
-    await root.wait_for(ShutdownEvent)
-    driver.stop()
-    root.stop()
+        # In this benchmark, this is the only process that is flooding events
+        driver_config = DriverProcessConfig(
+            connected_endpoints=consumer_endpoint_configs,
+            num_events=args.num_events,
+            throttle=args.throttle,
+            payload_bytes=args.payload_bytes,
+        )
+        driver = DriverProcess(driver_config)
+        driver.start()
+
+        await root.wait_for(ShutdownEvent)
+        driver.stop()
 
 
 if __name__ == "__main__":
