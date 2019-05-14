@@ -8,7 +8,6 @@ from lahja import BroadcastConfig
 
 @pytest.mark.asyncio
 async def test_internal_propagation(pair_of_endpoints):
-
     endpoint1, endpoint2 = pair_of_endpoints
 
     async def broadcast_dummies():

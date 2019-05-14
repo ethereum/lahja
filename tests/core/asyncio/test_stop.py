@@ -2,18 +2,17 @@ import pytest
 
 from conftest import generate_unique_name
 from helpers import DummyResponse
-from lahja import ConnectionConfig, Endpoint
+from lahja import AsyncioEndpoint, ConnectionConfig
 
 
 @pytest.mark.asyncio
 async def test_can_stop():
-
     first = ConnectionConfig.from_name(generate_unique_name())
-    first_endpoint = Endpoint()
+    first_endpoint = AsyncioEndpoint()
     await first_endpoint.start_serving(first)
 
     second = ConnectionConfig.from_name(generate_unique_name())
-    second_endpoint = Endpoint()
+    second_endpoint = AsyncioEndpoint()
     await second_endpoint.start_serving(second)
 
     await first_endpoint.connect_to_endpoints(second)

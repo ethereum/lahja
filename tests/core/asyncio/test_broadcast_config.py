@@ -6,7 +6,6 @@ from lahja import BroadcastConfig
 
 @pytest.mark.asyncio
 async def test_broadcasts_to_all_endpoints(triplet_of_endpoints):
-
     endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
 
     tracker = Tracker()
