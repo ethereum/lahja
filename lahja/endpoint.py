@@ -376,7 +376,9 @@ class Endpoint(BaseEndpoint):
         self.ipc_path.unlink()
 
     @asynccontextmanager  # type: ignore
-    async def run(self) -> AsyncIterable['Endpoint']:
+    async def run(self) -> AsyncIterable['Endpoint']:  # type: ignore
+        if not self._loop:
+            self._loop = asyncio.get_event_loop()
         try:
             yield self
         finally:
