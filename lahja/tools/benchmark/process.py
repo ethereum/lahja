@@ -1,9 +1,9 @@
-import asyncio
 import itertools
 import logging
 import multiprocessing
 import time
 from typing import (  # noqa: F401
+    Any,
     AsyncGenerator,
     List,
     NamedTuple,
@@ -14,7 +14,9 @@ from typing import (  # noqa: F401
 from lahja import (
     BroadcastConfig,
     ConnectionConfig,
-    Endpoint,
+)
+from lahja.tools.benchmark.backends import (
+    BaseBackend,
 )
 from lahja.tools.benchmark.constants import (
     DRIVER_ENDPOINT,
@@ -41,6 +43,7 @@ class DriverProcessConfig(NamedTuple):
     connected_endpoints: Tuple[ConnectionConfig, ...]
     throttle: float
     payload_bytes: int
+    backend: BaseBackend
 
 
 class DriverProcess:
@@ -67,20 +70,18 @@ class DriverProcess:
         # UNCOMMENT FOR DEBUGGING
         # logger = multiprocessing.log_to_stderr()
         # logger.setLevel(logging.INFO)
-
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(DriverProcess.worker(config))
+        config.backend.run(DriverProcess.worker, config)
 
     @staticmethod
     async def worker(config: DriverProcessConfig) -> None:
         conn_config = ConnectionConfig.from_name(DRIVER_ENDPOINT)
-        async with Endpoint.serve(conn_config) as event_bus:
+        async with config.backend.Endpoint.serve(conn_config) as event_bus:
             await event_bus.connect_to_endpoints(*config.connected_endpoints)
 
             counter = itertools.count()
             payload = b'\x00' * config.payload_bytes
             while True:
-                await asyncio.sleep(config.throttle)
+                await config.backend.sleep(config.throttle)
                 await event_bus.broadcast(
                     PerfMeasureEvent(payload, next(counter), time.time())
                 )
@@ -88,32 +89,33 @@ class DriverProcess:
 
 class ConsumerProcess:
 
-    def __init__(self, name: str, num_events: int) -> None:
+    def __init__(self, name: str, num_events: int, backend: BaseBackend) -> None:
         self._name = name
         self._num_events = num_events
         self._process: Optional[multiprocessing.Process] = None
+        self._backend = backend
 
     def start(self) -> None:
         self._process = multiprocessing.Process(
             target=self.launch,
-            args=(self._name, self._num_events)
+            args=(self._name, self._num_events, self._backend)
         )
         self._process.start()
 
     @staticmethod
-    def launch(name: str, num_events: int) -> None:
+    def launch(name: str, num_events: int, backend: BaseBackend) -> None:
         # UNCOMMENT FOR DEBUGGING
         # logger = multiprocessing.log_to_stderr()
         # logger.setLevel(logging.INFO)
-
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(ConsumerProcess.worker(name, num_events))
+        backend.run(ConsumerProcess.worker, backend, name, num_events)
 
     @staticmethod
-    async def worker(name: str, num_events: int) -> None:
-        conn_config = ConnectionConfig.from_name(name)
-        async with Endpoint.serve(conn_config) as event_bus:
-            await event_bus.connect_to_endpoints(ConnectionConfig.from_name(REPORTER_ENDPOINT))
+    async def worker(backend: BaseBackend, name: str, num_events: int) -> None:
+        config = ConnectionConfig.from_name(name)
+        async with backend.Endpoint.serve(config) as event_bus:
+            await event_bus.connect_to_endpoints(
+                ConnectionConfig.from_name(REPORTER_ENDPOINT)
+            )
 
             stats = LocalStatistic()
             events = event_bus.stream(PerfMeasureEvent, num_events=num_events)
@@ -134,6 +136,7 @@ class ReportingProcessConfig(NamedTuple):
     num_events: int
     throttle: float
     payload_bytes: int
+    backend: BaseBackend
 
 
 class ReportingProcess:
@@ -155,14 +158,13 @@ class ReportingProcess:
         logging.basicConfig(level=logging.INFO, format='%(message)s')
         logger = logging.getLogger('reporting')
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(ReportingProcess.worker(logger, config))
+        config.backend.run(ReportingProcess.worker, logger, config)
 
     @staticmethod
     async def worker(logger: logging.Logger,
                      config: ReportingProcessConfig) -> None:
         conn_config = ConnectionConfig.from_name(REPORTER_ENDPOINT)
-        async with Endpoint.serve(conn_config) as event_bus:
+        async with config.backend.Endpoint.serve(conn_config) as event_bus:
             await event_bus.connect_to_endpoints(
                 ConnectionConfig.from_name(ROOT_ENDPOINT),
             )
@@ -172,9 +174,14 @@ class ReportingProcess:
             async for event in events:
                 global_statistic.add(event.total)
 
-            print_full_report(logger, config.num_processes, config.num_events, global_statistic)
+            print_full_report(
+                logger,
+                config.backend,
+                config.num_processes,
+                config.num_events,
+                global_statistic,
+            )
             await event_bus.broadcast(
                 ShutdownEvent(),
                 BroadcastConfig(filter_endpoint=ROOT_ENDPOINT)
             )
-            event_bus.stop()

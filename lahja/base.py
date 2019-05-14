@@ -5,6 +5,7 @@ from abc import (
 import logging
 from typing import (  # noqa: F401
     Any,
+    AsyncContextManager,
     AsyncGenerator,
     Callable,
     Dict,
@@ -27,9 +28,6 @@ from .misc import (
     ConnectionConfig,
     Subscription,
 )
-from .typing import (
-    AsyncEndpointContextManager,
-)
 
 TResponse = TypeVar('TResponse', bound=BaseEvent)
 TWaitForEvent = TypeVar('TWaitForEvent', bound=BaseEvent)
@@ -42,12 +40,13 @@ class EndpointAPI(ABC):
     The :class:`~lahja.endpoint.Endpoint` enables communication between different processes
     as well as within a single process via various event-driven APIs.
     """
+    name: str
 
     #
     # Running and Server API
     #
     @abstractmethod
-    async def run(self) -> AsyncEndpointContextManager:
+    def run(self) -> AsyncContextManager['BaseEndpoint']:
         """
         Context manager API for running endpoints.
 
@@ -61,7 +60,7 @@ class EndpointAPI(ABC):
 
     @classmethod
     @abstractmethod
-    async def serve(cls, config: ConnectionConfig) -> AsyncEndpointContextManager:
+    def serve(cls, config: ConnectionConfig) -> AsyncContextManager['BaseEndpoint']:
         """
         Context manager API for running and endpoint server.
 
@@ -158,6 +157,14 @@ class BaseEndpoint(EndpointAPI):
     #
     def __reduce__(self) -> None:  # type: ignore
         raise NotImplementedError('Endpoints cannot be pickled')
+
+    async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
+        """
+        Naive asynchronous implementation.  Subclasses should consider
+        connecting concurrently.
+        """
+        for config in endpoints:
+            await self.connect_to_endpoint(config)
 
     async def wait_for(self, event_type: Type[TWaitForEvent]) -> TWaitForEvent:
         """

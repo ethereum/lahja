@@ -55,9 +55,6 @@ from .misc import (
     ConnectionConfig,
     Subscription,
 )
-from .typing import (
-    AsyncEndpointContextManager,
-)
 
 
 async def wait_for_path(path: pathlib.Path, timeout: int = 2) -> None:
@@ -185,7 +182,7 @@ class Endpoint(BaseEndpoint):
         return cast(TFunc, run)
 
     @property
-    def name(self) -> str:
+    def name(self) -> str:  # type: ignore  # mypy thinks the signature does not match EndpointAPI
         return self._name
 
     # This property gets assigned during class creation.  This should be ok
@@ -376,21 +373,22 @@ class Endpoint(BaseEndpoint):
         self.ipc_path.unlink()
 
     @asynccontextmanager  # type: ignore
-    async def run(self) -> AsyncIterable['Endpoint']:
+    async def run(self) -> AsyncGenerator['Endpoint', None]:
+        if not self._loop:
+            self._loop = asyncio.get_event_loop()
+
         try:
             yield self
         finally:
             self.stop()
-    run = cast(Callable[[None], AsyncEndpointContextManager], run)
 
     @classmethod
     @asynccontextmanager  # type: ignore
-    async def serve(cls, config: ConnectionConfig) -> AsyncIterable['Endpoint']:
+    async def serve(cls, config: ConnectionConfig) -> AsyncGenerator['Endpoint', None]:
         endpoint = cls()
         async with endpoint.run():
             await endpoint.start_serving(config)
             yield endpoint
-    serve = cast(Callable[[None], AsyncEndpointContextManager], serve)
 
     async def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
         """
