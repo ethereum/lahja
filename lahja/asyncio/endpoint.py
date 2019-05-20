@@ -107,7 +107,6 @@ class Connection:
         return cls(reader, writer)
 
     async def send_message(self, message: Msg) -> None:
-        assert isinstance(message, Message)
         pickled = pickle.dumps(message)
         size = len(pickled)
 
@@ -129,8 +128,7 @@ class Connection:
             raw_size = await self.reader.readexactly(SIZE_MARKER_LENGTH)
             size = int.from_bytes(raw_size, "little")
             message = await self.reader.readexactly(size)
-            obj = pickle.loads(message)
-            assert isinstance(obj, Message)
+            obj = cast(Message, pickle.loads(message))
             return obj
         except (asyncio.IncompleteReadError, BrokenPipeError, ConnectionResetError):
             raise RemoteDisconnected()
