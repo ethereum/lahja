@@ -1,15 +1,8 @@
 import pytest
 
-from conftest import (
-    generate_unique_name,
-)
-from helpers import (
-    DummyResponse,
-)
-from lahja import (
-    ConnectionConfig,
-    Endpoint,
-)
+from conftest import generate_unique_name
+from helpers import DummyResponse
+from lahja import ConnectionConfig, Endpoint
 
 
 @pytest.mark.asyncio

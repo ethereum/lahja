@@ -27,7 +27,8 @@ lint:
 	tox -elint
 
 lint-roll:
-	isort --recursive lahja tests scripts
+	isort --recursive lahja scripts tests
+	black lahja scripts tests
 	$(MAKE) lint
 
 test:

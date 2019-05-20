@@ -1,17 +1,10 @@
 import time
-from typing import (  # noqa: F401
-    List,
-)
+from typing import List  # noqa: F401
 
-from lahja.tools.benchmark.typing import (
-    CrunchedMeasureEntry,
-    RawMeasureEntry,
-    Total,
-)
+from lahja.tools.benchmark.typing import CrunchedMeasureEntry, RawMeasureEntry, Total
 
 
 class LocalStatistic:
-
     def __init__(self) -> None:
         self._entries: List[RawMeasureEntry] = []
 
@@ -23,9 +16,7 @@ class LocalStatistic:
         for entry in self._entries:
             crunched_entries.append(
                 CrunchedMeasureEntry(
-                    entry.sent_at,
-                    entry.received_at,
-                    entry.received_at - entry.sent_at
+                    entry.sent_at, entry.received_at, entry.received_at - entry.sent_at
                 )
             )
 
@@ -46,12 +37,11 @@ class LocalStatistic:
             last_received=last_received,
             total_duration=total_duration,
             total_aggregated_time=total_aggregated_time,
-            duration_avg=avg
+            duration_avg=avg,
         )
 
 
 class GlobalStatistic:
-
     def __init__(self) -> None:
         self._created_at = time.time()
         self._entries: List[Total] = []

@@ -1,10 +1,5 @@
-from .endpoint import (  # noqa: F401
-    Endpoint,
-)
-from .exceptions import (  # noqa: F401
-    ConnectionAttemptRejected,
-    UnexpectedResponse,
-)
+from .endpoint import Endpoint  # noqa: F401
+from .exceptions import ConnectionAttemptRejected, UnexpectedResponse  # noqa: F401
 from .misc import (  # noqa: F401
     BaseEvent,
     BaseRequestResponseEvent,

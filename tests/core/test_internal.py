@@ -2,12 +2,8 @@ import asyncio
 
 import pytest
 
-from helpers import (
-    DummyResponse,
-)
-from lahja import (
-    BroadcastConfig,
-)
+from helpers import DummyResponse
+from lahja import BroadcastConfig
 
 
 @pytest.mark.asyncio
@@ -19,8 +15,7 @@ async def test_internal_propagation(pair_of_endpoints):
         while True:
             # We are broadcasting internally on endpoint1
             await endpoint1.broadcast(
-                DummyResponse("Dummy"),
-                BroadcastConfig(internal=True)
+                DummyResponse("Dummy"), BroadcastConfig(internal=True)
             )
             await asyncio.sleep(0.01)
 
@@ -30,10 +25,7 @@ async def test_internal_propagation(pair_of_endpoints):
     # We expect that this will never receive an answer
     e2_task = asyncio.ensure_future(endpoint2.wait_for(DummyResponse))
 
-    done, pending = await asyncio.wait(
-        {e1_task, e2_task},
-        timeout=0.05
-    )
+    done, pending = await asyncio.wait({e1_task, e2_task}, timeout=0.05)
     assert e1_task in done
     assert e2_task not in done
     assert e2_task in pending

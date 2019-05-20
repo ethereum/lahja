@@ -1,16 +1,10 @@
 import argparse
 import multiprocessing
 import os
-
-from lahja import (
-    ConnectionConfig,
-)
 import tempfile
 
-from lahja.tools.benchmark.backends import (
-    AsyncioBackend,
-    BaseBackend,
-)
+from lahja import ConnectionConfig
+from lahja.tools.benchmark.backends import AsyncioBackend, BaseBackend
 from lahja.tools.benchmark.constants import (
     DRIVER_ENDPOINT,
     REPORTER_ENDPOINT,
@@ -23,33 +17,41 @@ from lahja.tools.benchmark.process import (
     ReportingProcess,
     ReportingProcessConfig,
 )
-from lahja.tools.benchmark.typing import (
-    ShutdownEvent,
-)
+from lahja.tools.benchmark.typing import ShutdownEvent
 from lahja.tools.benchmark.utils.config import (
     create_consumer_endpoint_configs,
     create_consumer_endpoint_name,
 )
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--num-processes', type=int, default=10,
-                    help='The number of processes listening for events')
-parser.add_argument('--num-events', type=int, default=100,
-                    help='The number of events propagated')
-parser.add_argument('--throttle', type=float, default=0.0,
-                    help='The time to wait between propagating events')
-parser.add_argument('--payload-bytes', type=int, default=1,
-                    help='The payload of each event in bytes')
-parser.add_argument('--backend', action='append',
-                    help='The endpoint backend to use')
+parser.add_argument(
+    "--num-processes",
+    type=int,
+    default=10,
+    help="The number of processes listening for events",
+)
+parser.add_argument(
+    "--num-events", type=int, default=100, help="The number of events propagated"
+)
+parser.add_argument(
+    "--throttle",
+    type=float,
+    default=0.0,
+    help="The time to wait between propagating events",
+)
+parser.add_argument(
+    "--payload-bytes", type=int, default=1, help="The payload of each event in bytes"
+)
+parser.add_argument("--backend", action="append", help="The endpoint backend to use")
 
 
 async def run(args: argparse.Namespace, backend: BaseBackend):
     consumer_endpoint_configs = create_consumer_endpoint_configs(args.num_processes)
 
     (
-        config.path.unlink() for config in
-        consumer_endpoint_configs + tuple(
+        config.path.unlink()
+        for config in consumer_endpoint_configs
+        + tuple(
             ConnectionConfig.from_name(name)
             for name in (ROOT_ENDPOINT, REPORTER_ENDPOINT, DRIVER_ENDPOINT)
         )
@@ -73,9 +75,7 @@ async def run(args: argparse.Namespace, backend: BaseBackend):
 
         for n in range(args.num_processes):
             consumer_process = ConsumerProcess(
-                create_consumer_endpoint_name(n),
-                args.num_events,
-                backend=backend,
+                create_consumer_endpoint_name(n), args.num_events, backend=backend
             )
             consumer_process.start()
 
@@ -99,10 +99,10 @@ if __name__ == "__main__":
 
     # WARNING: The `fork` method does not work well with asyncio yet.
     # This might change with Python 3.8 (See https://bugs.python.org/issue22087#msg318140)
-    multiprocessing.set_start_method('spawn')
+    multiprocessing.set_start_method("spawn")
 
-    for backend_str in args.backend or ['asyncio']:
-        if backend_str == 'asyncio':
+    for backend_str in args.backend or ["asyncio"]:
+        if backend_str == "asyncio":
             backend = AsyncioBackend()
         else:
             raise Exception(f"Unrecognized backend: {args.backend}")

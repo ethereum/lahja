@@ -14,6 +14,7 @@ extras_require = {
         "tox>=2.9.1,<3",
     ],
     'lint': [
+        "black==19.3b",
         "flake8==3.7.7",
         "isort==4.3.18",
         "mypy==0.701",
