@@ -1,17 +1,8 @@
-from typing import (  # noqa: F401,
-    Any,
-    Callable,
-    Set,
-    Type,
-)
+from typing import Any, Callable, Set, Type  # noqa: F401,
 
-from cytoolz import (
-    curry,
-)
-from lahja import (
-    BaseEvent,
-    BaseRequestResponseEvent,
-)
+from cytoolz import curry
+
+from lahja import BaseEvent, BaseRequestResponseEvent
 
 
 class DummyRequest(BaseEvent):
@@ -34,7 +25,6 @@ class DummyRequestPair(BaseRequestResponseEvent[DummyResponse]):
 
 
 class Tracker:
-
     def __init__(self):
         self._tracker = set()
 
@@ -49,13 +39,10 @@ class Tracker:
         return continue_fn()
 
     @curry
-    def track_and_broadcast_dummy(self,
-                                  track_id,
-                                  endpoint,
-                                  ev):
+    def track_and_broadcast_dummy(self, track_id, endpoint, ev):
         self.track_and_run(
             track_id,
             lambda: endpoint.broadcast_nowait(
                 DummyResponse(ev.property_of_dummy_request_pair), ev.broadcast_config()
-            )
+            ),
         )

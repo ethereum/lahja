@@ -1,3 +1,1 @@
-from .stats import (  # noqa: F401
-    LocalStatistic,
-)
+from .stats import LocalStatistic  # noqa: F401

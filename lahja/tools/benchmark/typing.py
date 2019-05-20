@@ -1,10 +1,6 @@
-from typing import (
-    NamedTuple,
-)
+from typing import NamedTuple
 
-from lahja import (
-    BaseEvent,
-)
+from lahja import BaseEvent
 
 
 class RawMeasureEntry(NamedTuple):
@@ -19,7 +15,6 @@ class CrunchedMeasureEntry(NamedTuple):
 
 
 class PerfMeasureEvent(BaseEvent):
-
     def __init__(self, payload: bytes, index: int, sent_at: float) -> None:
         self.payload = payload
         self.index = index
@@ -43,6 +38,5 @@ class Total(NamedTuple):
 
 
 class TotalRecordedEvent(BaseEvent):
-
     def __init__(self, total: Total) -> None:
         self.total = total

@@ -1,10 +1,5 @@
-from abc import (
-    ABC,
-    abstractmethod,
-)
-from pathlib import (
-    Path,
-)
+from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import (  # noqa: F401
     Any,
     Callable,
@@ -18,7 +13,6 @@ from typing import (  # noqa: F401
 
 
 class Subscription:
-
     def __init__(self, unsubscribe_fn: Callable[[], Any]) -> None:
         self._unsubscribe_fn = unsubscribe_fn
 
@@ -27,11 +21,12 @@ class Subscription:
 
 
 class BroadcastConfig:
-
-    def __init__(self,
-                 filter_endpoint: Optional[str] = None,
-                 filter_event_id: Optional[str] = None,
-                 internal: bool = False) -> None:
+    def __init__(
+        self,
+        filter_endpoint: Optional[str] = None,
+        filter_event_id: Optional[str] = None,
+        internal: bool = False,
+    ) -> None:
 
         self.filter_endpoint = filter_endpoint
         self.filter_event_id = filter_event_id
@@ -55,28 +50,21 @@ class BroadcastConfig:
 
 class BaseEvent:
 
-    _origin = ''
+    _origin = ""
     _id: Optional[str] = None
     _config: Optional[BroadcastConfig] = None
 
     def broadcast_config(self, internal: bool = False) -> BroadcastConfig:
         if internal:
-            return BroadcastConfig(
-                internal=True,
-                filter_event_id=self._id
-            )
+            return BroadcastConfig(internal=True, filter_event_id=self._id)
 
-        return BroadcastConfig(
-            filter_endpoint=self._origin,
-            filter_event_id=self._id
-        )
+        return BroadcastConfig(filter_endpoint=self._origin, filter_event_id=self._id)
 
 
-TResponse = TypeVar('TResponse', bound=BaseEvent)
+TResponse = TypeVar("TResponse", bound=BaseEvent)
 
 
 class BaseRequestResponseEvent(ABC, BaseEvent, Generic[TResponse]):
-
     @staticmethod
     @abstractmethod
     def expected_response_type() -> Type[TResponse]:
@@ -94,6 +82,7 @@ class TransparentEvent(BaseEvent):
     blocks on a :meth:`~multiprocessing.queues.Queue.get` unblocks and
     gets a chance to revalidate if it should continue to block for reading.
     """
+
     pass
 
 
@@ -104,11 +93,14 @@ class ConnectionConfig(NamedTuple):
     """
     Configuration class needed to establish :class:`~lahja.endpoint.Endpoint` connections.
     """
+
     name: str
     path: Path
 
     @classmethod
-    def from_name(cls, name: str, base_path: Optional[Path] = None) -> 'ConnectionConfig':
+    def from_name(
+        cls, name: str, base_path: Optional[Path] = None
+    ) -> "ConnectionConfig":
         if base_path is None:
             return cls(name=name, path=Path(f"{name}.ipc"))
         elif base_path.is_dir():

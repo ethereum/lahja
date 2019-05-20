@@ -1,9 +1,6 @@
 import abc
 import asyncio
-from asyncio import (
-    StreamReader,
-    StreamWriter,
-)
+from asyncio import StreamReader, StreamWriter
 import functools
 import itertools
 import logging
@@ -29,19 +26,10 @@ from typing import (  # noqa: F401
 )
 import uuid
 
-from async_generator import (
-    asynccontextmanager,
-)
+from async_generator import asynccontextmanager
 
-from lahja._snappy import (
-    check_has_snappy_support,
-)
-from lahja.base import (
-    BaseEndpoint,
-    TResponse,
-    TStreamEvent,
-    TSubscribeEvent,
-)
+from lahja._snappy import check_has_snappy_support
+from lahja.base import BaseEndpoint, TResponse, TStreamEvent, TSubscribeEvent
 
 from .exceptions import (
     ConnectionAttemptRejected,
@@ -80,6 +68,7 @@ class Message(abc.ABC):
     derived message types need to derive from ``NamedTuple`` directly and call
     Message.register(DerivedType) in order to allow isinstance(obj, Message) checks.
     """
+
     pass
 
 
@@ -105,7 +94,7 @@ SIZE_MARKER_LENGTH = 4
 
 
 class Connection:
-    logger = logging.getLogger('lahja.endpoint.Connection')
+    logger = logging.getLogger("lahja.endpoint.Connection")
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         self.writer = writer
@@ -113,7 +102,7 @@ class Connection:
         self._drain_lock = asyncio.Lock()
 
     @classmethod
-    async def connect_to(cls, path: str) -> 'Connection':
+    async def connect_to(cls, path: str) -> "Connection":
         reader, writer = await asyncio.open_unix_connection(path)
         return cls(reader, writer)
 
@@ -123,7 +112,7 @@ class Connection:
         size = len(pickled)
 
         try:
-            self.writer.write(size.to_bytes(SIZE_MARKER_LENGTH, 'little'))
+            self.writer.write(size.to_bytes(SIZE_MARKER_LENGTH, "little"))
             self.writer.write(pickled)
             async with self._drain_lock:
                 # Use a lock to serialize drain() calls. Circumvents this bug:
@@ -138,7 +127,7 @@ class Connection:
 
         try:
             raw_size = await self.reader.readexactly(SIZE_MARKER_LENGTH)
-            size = int.from_bytes(raw_size, 'little')
+            size = int.from_bytes(raw_size, "little")
             message = await self.reader.readexactly(size)
             obj = pickle.loads(message)
             assert isinstance(obj, Message)
@@ -152,11 +141,14 @@ class InboundConnection:
     A local Endpoint might have several ``InboundConnection``s, each of them represents a remote
     Endpoint which has connected to the given Endpoint and is attempting to send it messages.
     """
-    def __init__(self, conn: Connection, new_msg_func: Callable[[Broadcast], None]) -> None:
+
+    def __init__(
+        self, conn: Connection, new_msg_func: Callable[[Broadcast], None]
+    ) -> None:
         self.conn = conn
         self.new_msg_func = new_msg_func
 
-        self.logger = logging.getLogger('lahja.endpoint.InboundConnection')
+        self.logger = logging.getLogger("lahja.endpoint.InboundConnection")
 
         self._notify_lock = asyncio.Lock()
         self._received_response = asyncio.Condition()
@@ -176,11 +168,11 @@ class InboundConnection:
                 async with self._received_response:
                     self._received_response.notify_all()
             else:
-                self.logger.error(f'received unexpected message: {message}')
+                self.logger.error(f"received unexpected message: {message}")
 
-    async def notify_subscriptions_updated(self,
-                                           subscriptions: Set[Type[BaseEvent]],
-                                           block: bool = True) -> None:
+    async def notify_subscriptions_updated(
+        self, subscriptions: Set[Type[BaseEvent]], block: bool = True
+    ) -> None:
         """
         Alert the ``Endpoint`` which has connected to us that our subscription set has
         changed. If ``block`` is ``True`` then this function will block until the remote
@@ -192,7 +184,9 @@ class InboundConnection:
             # and that no replies are accidentally received by the wrong coroutines.
             async with self._received_response:
                 try:
-                    await self.conn.send_message(SubscriptionsUpdated(subscriptions, block))
+                    await self.conn.send_message(
+                        SubscriptionsUpdated(subscriptions, block)
+                    )
                 except RemoteDisconnected:
                     return
                 if block:
@@ -209,12 +203,13 @@ class OutboundConnection:
     Endpoint is subscribed to. No other message types are allowed to flow "backwards" from
     an outbound connection and otherwise are dropped.
     """
+
     def __init__(self, name: str, conn: Connection) -> None:
         self.conn = conn
         self.name = name
         self.subscribed_messages: Set[Type[BaseEvent]] = set()
 
-        self.logger = logging.getLogger('lahja.endpoint.OutboundConnection')
+        self.logger = logging.getLogger("lahja.endpoint.OutboundConnection")
         self._received_subscription = asyncio.Condition()
 
     async def run(self) -> None:
@@ -226,7 +221,7 @@ class OutboundConnection:
 
             if not isinstance(message, SubscriptionsUpdated):
                 self.logger.error(
-                    f'Endpoint {self.name} sent back an unexpected message: {type(message)}'
+                    f"Endpoint {self.name} sent back an unexpected message: {type(message)}"
                 )
                 return
 
@@ -258,7 +253,7 @@ class OutboundConnection:
             await self.wait_until_subscription_received()
 
 
-TFunc = TypeVar('TFunc', bound=Callable[..., Any])
+TFunc = TypeVar("TFunc", bound=Callable[..., Any])
 
 
 class Endpoint(BaseEndpoint):
@@ -270,10 +265,10 @@ class Endpoint(BaseEndpoint):
     _name: str
     _ipc_path: pathlib.Path
 
-    _receiving_queue: 'asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]'
+    _receiving_queue: "asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]"
     _receiving_loop_running: asyncio.Event
 
-    _internal_queue: 'asyncio.Queue[Tuple[BaseEvent, Optional[BroadcastConfig]]]'
+    _internal_queue: "asyncio.Queue[Tuple[BaseEvent, Optional[BroadcastConfig]]]"
     _internal_loop_running: asyncio.Event
 
     _server_running: asyncio.Event
@@ -283,11 +278,11 @@ class Endpoint(BaseEndpoint):
     def __init__(self) -> None:
         self._outbound_connections: Dict[str, OutboundConnection] = {}
         self._inbound_connections: Set[InboundConnection] = set()
-        self._futures: Dict[Optional[str], 'asyncio.Future[BaseEvent]'] = {}
+        self._futures: Dict[Optional[str], "asyncio.Future[BaseEvent]"] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
-        self._queues: Dict[Type[BaseEvent], List['asyncio.Queue[BaseEvent]']] = {}
+        self._queues: Dict[Type[BaseEvent], List["asyncio.Queue[BaseEvent]"]] = {}
 
-        self._child_tasks: Set['asyncio.Future[Any]'] = set()
+        self._child_tasks: Set["asyncio.Future[Any]"] = set()
 
         self._running = False
         self._loop = None
@@ -307,6 +302,7 @@ class Endpoint(BaseEndpoint):
         """
         All Endpoint methods must be called from the same event loop.
         """
+
         @functools.wraps(func)
         def run(self, *args, **kwargs):  # type: ignore
             if not self._loop:
@@ -314,14 +310,17 @@ class Endpoint(BaseEndpoint):
 
             if self._loop != asyncio.get_event_loop():
                 raise Exception(
-                    'All endpoint methods must be called from the same event loop'
+                    "All endpoint methods must be called from the same event loop"
                 )
 
             return func(self, *args, **kwargs)
+
         return cast(TFunc, run)
 
     @property
-    def name(self) -> str:  # type: ignore  # mypy thinks the signature does not match EndpointAPI
+    def name(  # type: ignore  # mypy thinks the signature does not match EndpointAPI
+        self
+    ) -> str:
         return self._name
 
     # This property gets assigned during class creation.  This should be ok
@@ -364,8 +363,7 @@ class Endpoint(BaseEndpoint):
 
     async def _start_server(self) -> None:
         self._server = await asyncio.start_unix_server(
-            self._accept_conn,
-            path=str(self.ipc_path),
+            self._accept_conn, path=str(self.ipc_path)
         )
         self._server_running.set()
 
@@ -398,15 +396,18 @@ class Endpoint(BaseEndpoint):
         """
         # make a copy so that the set doesn't change while we iterate over it
         for inbound_connection in self._inbound_connections.copy():
-            await inbound_connection.notify_subscriptions_updated(self.subscribed_events)
+            await inbound_connection.notify_subscriptions_updated(
+                self.subscribed_events
+            )
 
-    async def wait_until_any_connection_subscribed_to(self,
-                                                      event: Type[BaseEvent]) -> None:
+    async def wait_until_any_connection_subscribed_to(
+        self, event: Type[BaseEvent]
+    ) -> None:
         """
         Block until any other endpoint has subscribed to the ``event`` from this endpoint.
         """
         if len(self._outbound_connections) == 0:
-            raise Exception('there are no outbound connections!')
+            raise Exception("there are no outbound connections!")
 
         for outbound in self._outbound_connections.values():
             if event in outbound.subscribed_messages:
@@ -419,14 +420,15 @@ class Endpoint(BaseEndpoint):
         _, pending = await asyncio.wait(coros, return_when=asyncio.FIRST_COMPLETED)
         (task.cancel() for task in pending)
 
-    async def wait_until_all_connections_subscribed_to(self,
-                                                       event: Type[BaseEvent]) -> None:
+    async def wait_until_all_connections_subscribed_to(
+        self, event: Type[BaseEvent]
+    ) -> None:
         """
         Block until all other endpoints that we are connected to are subscribed to the ``event``
         from this endpoint.
         """
         if len(self._outbound_connections) == 0:
-            raise Exception('there are no outbound connections!')
+            raise Exception("there are no outbound connections!")
 
         coros = [
             outbound.wait_until_subscribed_to(event)
@@ -437,6 +439,7 @@ class Endpoint(BaseEndpoint):
     def _compress_event(self, event: BaseEvent) -> Union[BaseEvent, bytes]:
         if self.has_snappy_support:
             import snappy
+
             return cast(bytes, snappy.compress(pickle.dumps(event)))
         else:
             return event
@@ -446,6 +449,7 @@ class Endpoint(BaseEndpoint):
             return data
         else:
             import snappy
+
             return cast(BaseEvent, pickle.loads(snappy.decompress(data)))
 
     def _throw_if_already_connected(self, *endpoints: ConnectionConfig) -> None:
@@ -489,7 +493,7 @@ class Endpoint(BaseEndpoint):
         """
         self._throw_if_already_connected(*endpoints)
         await asyncio.gather(
-            *(self._await_connect_to_endpoint(endpoint) for endpoint in endpoints),
+            *(self._await_connect_to_endpoint(endpoint) for endpoint in endpoints)
         )
 
     def connect_to_endpoints_nowait(self, *endpoints: ConnectionConfig) -> None:
@@ -511,7 +515,7 @@ class Endpoint(BaseEndpoint):
         if config.name in self._outbound_connections.keys():
             self.logger.warning(
                 "Tried to connect to %s but we are already connected to that Endpoint",
-                config.name
+                config.name,
             )
             return
 
@@ -520,7 +524,9 @@ class Endpoint(BaseEndpoint):
         self._outbound_connections[config.name] = remote
 
         task = asyncio.ensure_future(remote.run())
-        task.add_done_callback(lambda _: self._outbound_connections.pop(config.name, None))
+        task.add_done_callback(
+            lambda _: self._outbound_connections.pop(config.name, None)
+        )
         task.add_done_callback(self._child_tasks.remove)
         self._child_tasks.add(task)
 
@@ -566,7 +572,7 @@ class Endpoint(BaseEndpoint):
         self.ipc_path.unlink()
 
     @asynccontextmanager  # type: ignore
-    async def run(self) -> AsyncGenerator['Endpoint', None]:
+    async def run(self) -> AsyncGenerator["Endpoint", None]:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
 
@@ -577,13 +583,15 @@ class Endpoint(BaseEndpoint):
 
     @classmethod
     @asynccontextmanager  # type: ignore
-    async def serve(cls, config: ConnectionConfig) -> AsyncGenerator['Endpoint', None]:
+    async def serve(cls, config: ConnectionConfig) -> AsyncGenerator["Endpoint", None]:
         endpoint = cls()
         async with endpoint.run():
             await endpoint.start_serving(config)
             yield endpoint
 
-    async def broadcast(self, item: BaseEvent, config: Optional[BroadcastConfig] = None) -> None:
+    async def broadcast(
+        self, item: BaseEvent, config: Optional[BroadcastConfig] = None
+    ) -> None:
         """
         Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus. Takes
         an optional second parameter of :class:`~lahja.misc.BroadcastConfig` to decide
@@ -606,14 +614,14 @@ class Endpoint(BaseEndpoint):
                 try:
                     await remote.send_message(Broadcast(compressed_item, config))
                 except RemoteDisconnected:
-                    self.logger.debug(f'Remote endpoint {name} no longer exists')
+                    self.logger.debug(f"Remote endpoint {name} no longer exists")
                     disconnected_endpoints.append(name)
         for name in disconnected_endpoints:
             self._outbound_connections.pop(name, None)
 
-    def broadcast_nowait(self,
-                         item: BaseEvent,
-                         config: Optional[BroadcastConfig] = None) -> None:
+    def broadcast_nowait(
+        self, item: BaseEvent, config: Optional[BroadcastConfig] = None
+    ) -> None:
         """
         A non-async :meth:`~lahja.Endpoint.broadcast` (see :meth:`~lahja.Endpoint.broadcast`
         for more)
@@ -631,9 +639,11 @@ class Endpoint(BaseEndpoint):
         asyncio.ensure_future(self.broadcast(item, config))
 
     @check_event_loop
-    async def request(self,
-                      item: BaseRequestResponseEvent[TResponse],
-                      config: Optional[BroadcastConfig] = None) -> TResponse:
+    async def request(
+        self,
+        item: BaseRequestResponseEvent[TResponse],
+        config: Optional[BroadcastConfig] = None,
+    ) -> TResponse:
         """
         Broadcast an instance of :class:`~lahja.misc.BaseRequestResponseEvent` on the event bus and
         immediately wait on an expected answer of type :class:`~lahja.misc.BaseEvent`. Optionally
@@ -644,14 +654,16 @@ class Endpoint(BaseEndpoint):
         item._origin = self.name
         item._id = str(uuid.uuid4())
 
-        future: 'asyncio.Future[TResponse]' = asyncio.Future()
+        future: "asyncio.Future[TResponse]" = asyncio.Future()
         self._futures[item._id] = future  # type: ignore
         # mypy can't reconcile the TResponse with the declared type of
         # `self._futures`.
 
         await self.broadcast(item, config)
 
-        future.add_done_callback(functools.partial(self._remove_cancelled_future, item._id))
+        future.add_done_callback(
+            functools.partial(self._remove_cancelled_future, item._id)
+        )
 
         result = await future
 
@@ -663,15 +675,17 @@ class Endpoint(BaseEndpoint):
 
         return result
 
-    def _remove_cancelled_future(self, id: str, future: 'asyncio.Future[Any]') -> None:
+    def _remove_cancelled_future(self, id: str, future: "asyncio.Future[Any]") -> None:
         try:
             future.exception()
         except asyncio.CancelledError:
             self._futures.pop(id, None)
 
-    def subscribe(self,
-                  event_type: Type[TSubscribeEvent],
-                  handler: Callable[[TSubscribeEvent], None]) -> Subscription:
+    def subscribe(
+        self,
+        event_type: Type[TSubscribeEvent],
+        handler: Callable[[TSubscribeEvent], None],
+    ) -> Subscription:
         """
         Subscribe to receive updates for any event that matches the specified event type.
         A handler is passed as a second argument an :class:`~lahja.misc.Subscription` is returned
@@ -696,17 +710,17 @@ class Endpoint(BaseEndpoint):
 
         return Subscription(remove)
 
-    async def stream(self,
-                     event_type: Type[TStreamEvent],
-                     num_events: Optional[int] = None) -> AsyncGenerator[TStreamEvent, None]:
+    async def stream(
+        self, event_type: Type[TStreamEvent], num_events: Optional[int] = None
+    ) -> AsyncGenerator[TStreamEvent, None]:
         """
         Stream all events that match the specified event type. This returns an
         ``AsyncIterable[BaseEvent]`` which can be consumed through an ``async for`` loop.
         An optional ``num_events`` parameter can be passed to stop streaming after a maximum amount
         of events was received.
         """
-        queue: 'asyncio.Queue[TStreamEvent]' = asyncio.Queue()
-        casted_queue = cast('asyncio.Queue[BaseEvent]', queue)
+        queue: "asyncio.Queue[TStreamEvent]" = asyncio.Queue()
+        casted_queue = cast("asyncio.Queue[BaseEvent]", queue)
         if event_type not in self._queues:
             self._queues[event_type] = []
 

@@ -1,13 +1,7 @@
 import pytest
 
-from conftest import (
-    generate_unique_name,
-)
-from lahja import (
-    ConnectionAttemptRejected,
-    ConnectionConfig,
-    Endpoint,
-)
+from conftest import generate_unique_name
+from lahja import ConnectionAttemptRejected, ConnectionConfig, Endpoint
 
 
 @pytest.mark.asyncio

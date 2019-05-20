@@ -3,16 +3,8 @@ import pickle
 
 import pytest
 
-from helpers import (
-    DummyRequest,
-    DummyRequestPair,
-    DummyResponse,
-)
-from lahja import (
-    BaseEvent,
-    Endpoint,
-    UnexpectedResponse,
-)
+from helpers import DummyRequest, DummyRequestPair, DummyResponse
+from lahja import BaseEvent, Endpoint, UnexpectedResponse
 
 
 @pytest.mark.asyncio
@@ -22,8 +14,9 @@ async def test_request(endpoint):
         lambda ev: endpoint.broadcast_nowait(
             # Accessing `ev.property_of_dummy_request_pair` here allows us to validate
             # mypy has the type information we think it has. We run mypy on the tests.
-            DummyResponse(ev.property_of_dummy_request_pair), ev.broadcast_config()
-        )
+            DummyResponse(ev.property_of_dummy_request_pair),
+            ev.broadcast_config(),
+        ),
     )
 
     await endpoint.wait_until_any_connection_subscribed_to(DummyRequestPair)
@@ -56,8 +49,9 @@ async def test_response_must_match(endpoint):
         lambda ev: endpoint.broadcast_nowait(
             # We intentionally broadcast an unexpected response. Mypy can't catch
             # this but we ensure it is caught and raised during the processing.
-            DummyRequest(), ev.broadcast_config()
-        )
+            DummyRequest(),
+            ev.broadcast_config(),
+        ),
     )
 
     await endpoint.wait_until_any_connection_subscribed_to(DummyRequestPair)

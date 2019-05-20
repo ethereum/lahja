@@ -1,13 +1,6 @@
-from typing import (
-    AsyncIterable,
-    Type,
-)
+from typing import AsyncIterable, Type
 
-from lahja import (
-    BaseEvent,
-    BaseRequestResponseEvent,
-    Endpoint,
-)
+from lahja import BaseEvent, BaseRequestResponseEvent, Endpoint
 
 
 class Event(BaseEvent):
@@ -36,4 +29,5 @@ async def verify_request_response_type(endpoint: Endpoint) -> Event:
 async def verify_subscribe_type(endpoint: Endpoint) -> None:
     def handler(event: Event) -> None:
         pass
+
     endpoint.subscribe(Event, handler)

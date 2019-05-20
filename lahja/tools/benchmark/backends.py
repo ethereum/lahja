@@ -1,18 +1,8 @@
-from abc import (
-    ABC,
-    abstractmethod,
-)
-from typing import (
-    Any,
-    Type,
-)
+from abc import ABC, abstractmethod
+from typing import Any, Type
 
-from lahja.base import (
-    BaseEndpoint,
-)
-from lahja.endpoint import (
-    Endpoint as LegacyEndpoint,
-)
+from lahja.base import BaseEndpoint
+from lahja.endpoint import Endpoint as LegacyEndpoint
 
 
 class BaseBackend(ABC):
@@ -31,7 +21,7 @@ class BaseBackend(ABC):
 
 
 class AsyncioBackend(BaseBackend):
-    name = 'asyncio'
+    name = "asyncio"
     Endpoint = LegacyEndpoint
 
     @staticmethod
@@ -48,4 +38,5 @@ class AsyncioBackend(BaseBackend):
     @staticmethod
     async def sleep(seconds: float) -> None:
         import asyncio
+
         await asyncio.sleep(seconds)

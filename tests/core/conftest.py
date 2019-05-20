@@ -2,10 +2,7 @@ import uuid
 
 import pytest
 
-from lahja import (
-    ConnectionConfig,
-    Endpoint,
-)
+from lahja import ConnectionConfig, Endpoint
 
 
 def generate_unique_name():
@@ -13,20 +10,18 @@ def generate_unique_name():
     return str(uuid.uuid4())
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 async def endpoint():
     config = ConnectionConfig.from_name(generate_unique_name())
     async with Endpoint.serve(config) as endpoint:
         # We need to connect to our own Endpoint if we care about receiving
         # the events we broadcast. Many tests use the same Endpoint for
         # broadcasting and receiving which is a valid use case so we hook it up
-        await endpoint.connect_to_endpoints(
-            ConnectionConfig.from_name(config.name),
-        )
+        await endpoint.connect_to_endpoints(ConnectionConfig.from_name(config.name))
         yield endpoint
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 async def pair_of_endpoints():
     config_1 = ConnectionConfig.from_name(generate_unique_name())
     config_2 = ConnectionConfig.from_name(generate_unique_name())
