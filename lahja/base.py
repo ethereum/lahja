@@ -18,7 +18,7 @@ from typing import (  # noqa: F401
     cast,
 )
 
-from .misc import (
+from .common import (
     BaseEvent,
     BaseRequestResponseEvent,
     BroadcastConfig,
@@ -53,6 +53,7 @@ class EndpointAPI(ABC):
             async with endpoint.run() as endpoint:
                 # endpoint running within context
             # endpoint stopped after
+
         """
         pass
 
@@ -67,6 +68,7 @@ class EndpointAPI(ABC):
             async with endpoint.serve():
                 # server running within context
             # server stopped
+
         """
         pass
 
@@ -112,8 +114,8 @@ class EndpointAPI(ABC):
         self, item: BaseEvent, config: Optional[BroadcastConfig] = None
     ) -> None:
         """
-        Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus. Takes
-        an optional second parameter of :class:`~lahja.misc.BroadcastConfig` to decide
+        Broadcast an instance of :class:`~lahja.common.BaseEvent` on the event bus. Takes
+        an optional second parameter of :class:`~lahja.common.BroadcastConfig` to decide
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
@@ -126,11 +128,13 @@ class EndpointAPI(ABC):
         config: Optional[BroadcastConfig] = None,
     ) -> TResponse:
         """
-        Broadcast an instance of :class:`~lahja.misc.BaseRequestResponseEvent` on the event bus and
-        immediately wait on an expected answer of type :class:`~lahja.misc.BaseEvent`. Optionally
-        pass a second parameter of :class:`~lahja.misc.BroadcastConfig` to decide where the request
-        should be broadcasted to. By default, requests are broadcasted across all connected
-        endpoints with their consuming call sites.
+        Broadcast an instance of
+        :class:`~lahja.common.BaseRequestResponseEvent` on the event bus and
+        immediately wait on an expected answer of type
+        :class:`~lahja.common.BaseEvent`. Optionally pass a second parameter of
+        :class:`~lahja.common.BroadcastConfig` to decide where the request
+        should be broadcasted to. By default, requests are broadcasted across
+        all connected endpoints with their consuming call sites.
         """
         pass
 
@@ -142,7 +146,7 @@ class EndpointAPI(ABC):
     ) -> Subscription:
         """
         Subscribe to receive updates for any event that matches the specified event type.
-        A handler is passed as a second argument an :class:`~lahja.misc.Subscription` is returned
+        A handler is passed as a second argument an :class:`~lahja.common.Subscription` is returned
         to unsubscribe from the event if needed.
         """
         pass
