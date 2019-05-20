@@ -29,7 +29,7 @@ Exceptions
 BaseEvent
 ---------
 
-.. autoclass:: lahja.misc.BaseEvent
+.. autoclass:: lahja.common.BaseEvent
     :members:
     :undoc-members:
     :show-inheritance:
@@ -37,7 +37,7 @@ BaseEvent
 BaseRequestResponseEvent
 ------------------------
 
-.. autoclass:: lahja.misc.BaseRequestResponseEvent
+.. autoclass:: lahja.common.BaseRequestResponseEvent
     :members:
     :undoc-members:
     :show-inheritance:
@@ -45,7 +45,7 @@ BaseRequestResponseEvent
 BroadcastConfig
 ---------------
 
-.. autoclass:: lahja.misc.BroadcastConfig
+.. autoclass:: lahja.common.BroadcastConfig
     :members:
     :undoc-members:
     :show-inheritance:
@@ -53,7 +53,7 @@ BroadcastConfig
 Subscription
 ------------
 
-.. autoclass:: lahja.misc.Subscription
+.. autoclass:: lahja.common.Subscription
     :members:
     :undoc-members:
     :show-inheritance:

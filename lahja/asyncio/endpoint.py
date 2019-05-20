@@ -31,13 +31,7 @@ from async_generator import asynccontextmanager
 
 from lahja._snappy import check_has_snappy_support
 from lahja.base import BaseEndpoint, TResponse, TStreamEvent, TSubscribeEvent
-from lahja.exceptions import (
-    ConnectionAttemptRejected,
-    NotServing,
-    RemoteDisconnected,
-    UnexpectedResponse,
-)
-from lahja.misc import (
+from lahja.common import (
     TRANSPARENT_EVENT,
     BaseEvent,
     BaseRequestResponseEvent,
@@ -45,6 +39,12 @@ from lahja.misc import (
     BroadcastConfig,
     ConnectionConfig,
     Subscription,
+)
+from lahja.exceptions import (
+    ConnectionAttemptRejected,
+    NotServing,
+    RemoteDisconnected,
+    UnexpectedResponse,
 )
 
 
@@ -590,8 +590,8 @@ class AsyncioEndpoint(BaseEndpoint):
         self, item: BaseEvent, config: Optional[BroadcastConfig] = None
     ) -> None:
         """
-        Broadcast an instance of :class:`~lahja.misc.BaseEvent` on the event bus. Takes
-        an optional second parameter of :class:`~lahja.misc.BroadcastConfig` to decide
+        Broadcast an instance of :class:`~lahja.common.BaseEvent` on the event bus. Takes
+        an optional second parameter of :class:`~lahja.common.BroadcastConfig` to decide
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
@@ -642,11 +642,13 @@ class AsyncioEndpoint(BaseEndpoint):
         config: Optional[BroadcastConfig] = None,
     ) -> TResponse:
         """
-        Broadcast an instance of :class:`~lahja.misc.BaseRequestResponseEvent` on the event bus and
-        immediately wait on an expected answer of type :class:`~lahja.misc.BaseEvent`. Optionally
-        pass a second parameter of :class:`~lahja.misc.BroadcastConfig` to decide where the request
-        should be broadcasted to. By default, requests are broadcasted across all connected
-        endpoints with their consuming call sites.
+        Broadcast an instance of
+        :class:`~lahja.common.BaseRequestResponseEvent` on the event bus and
+        immediately wait on an expected answer of type
+        :class:`~lahja.common.BaseEvent`. Optionally pass a second parameter of
+        :class:`~lahja.common.BroadcastConfig` to decide where the request
+        should be broadcasted to. By default, requests are broadcasted across
+        all connected endpoints with their consuming call sites.
         """
         item._origin = self.name
         item._id = str(uuid.uuid4())
@@ -685,7 +687,7 @@ class AsyncioEndpoint(BaseEndpoint):
     ) -> Subscription:
         """
         Subscribe to receive updates for any event that matches the specified event type.
-        A handler is passed as a second argument an :class:`~lahja.misc.Subscription` is returned
+        A handler is passed as a second argument an :class:`~lahja.common.Subscription` is returned
         to unsubscribe from the event if needed.
         """
         if event_type not in self._handler:
