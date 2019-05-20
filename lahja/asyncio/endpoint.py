@@ -111,8 +111,7 @@ class Connection:
         size = len(pickled)
 
         try:
-            self.writer.write(size.to_bytes(SIZE_MARKER_LENGTH, "little"))
-            self.writer.write(pickled)
+            self.writer.write(size.to_bytes(SIZE_MARKER_LENGTH, "little") + pickled)
             async with self._drain_lock:
                 # Use a lock to serialize drain() calls. Circumvents this bug:
                 # https://bugs.python.org/issue29930
