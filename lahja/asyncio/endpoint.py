@@ -12,6 +12,7 @@ from typing import (  # noqa: F401
     Any,
     AsyncGenerator,
     AsyncIterable,
+    AsyncIterator,
     Callable,
     Dict,
     List,
@@ -30,14 +31,13 @@ from async_generator import asynccontextmanager
 
 from lahja._snappy import check_has_snappy_support
 from lahja.base import BaseEndpoint, TResponse, TStreamEvent, TSubscribeEvent
-
-from .exceptions import (
+from lahja.exceptions import (
     ConnectionAttemptRejected,
     NotServing,
     RemoteDisconnected,
     UnexpectedResponse,
 )
-from .misc import (
+from lahja.misc import (
     TRANSPARENT_EVENT,
     BaseEvent,
     BaseRequestResponseEvent,
@@ -256,9 +256,9 @@ class OutboundConnection:
 TFunc = TypeVar("TFunc", bound=Callable[..., Any])
 
 
-class Endpoint(BaseEndpoint):
+class AsyncioEndpoint(BaseEndpoint):
     """
-    The :class:`~lahja.endpoint.Endpoint` enables communication between different processes
+    The :class:`~lahja.asyncio.AsyncioEndpoint` enables communication between different processes
     as well as within a single process via various event-driven APIs.
     """
 
@@ -331,8 +331,9 @@ class Endpoint(BaseEndpoint):
     @check_event_loop
     async def start_serving(self, connection_config: ConnectionConfig) -> None:
         """
-        Start serving this :class:`~lahja.endpoint.Endpoint` so that it can receive events. Await
-        until the :class:`~lahja.endpoint.Endpoint` is ready.
+        Start serving this :class:`~lahja.asyncio.AsyncioEndpoint` so that it
+        can receive events. Await until the
+        :class:`~lahja.asyncio.AsyncioEndpoint` is ready.
         """
         self._name = connection_config.name
         self._ipc_path = connection_config.path
@@ -558,7 +559,7 @@ class Endpoint(BaseEndpoint):
 
     def stop(self) -> None:
         """
-        Stop the :class:`~lahja.endpoint.Endpoint` from receiving further events.
+        Stop the :class:`~lahja.asyncio.AsyncioEndpoint` from receiving further events.
         """
         if not self._running:
             return
@@ -572,10 +573,9 @@ class Endpoint(BaseEndpoint):
         self.ipc_path.unlink()
 
     @asynccontextmanager  # type: ignore
-    async def run(self) -> AsyncGenerator["Endpoint", None]:
+    async def run(self) -> AsyncIterator["AsyncioEndpoint"]:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
-
         try:
             yield self
         finally:
@@ -583,7 +583,7 @@ class Endpoint(BaseEndpoint):
 
     @classmethod
     @asynccontextmanager  # type: ignore
-    async def serve(cls, config: ConnectionConfig) -> AsyncGenerator["Endpoint", None]:
+    async def serve(cls, config: ConnectionConfig) -> AsyncIterator["AsyncioEndpoint"]:
         endpoint = cls()
         async with endpoint.run():
             await endpoint.start_serving(config)

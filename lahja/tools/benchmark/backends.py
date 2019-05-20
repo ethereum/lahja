@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Type
 
+from lahja.asyncio import AsyncioEndpoint
 from lahja.base import BaseEndpoint
-from lahja.endpoint import Endpoint as LegacyEndpoint
 
 
 class BaseBackend(ABC):
@@ -22,7 +22,7 @@ class BaseBackend(ABC):
 
 class AsyncioBackend(BaseBackend):
     name = "asyncio"
-    Endpoint = LegacyEndpoint
+    Endpoint = AsyncioEndpoint
 
     @staticmethod
     def run(coro: Any, *args: Any) -> None:

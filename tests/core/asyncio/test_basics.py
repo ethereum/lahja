@@ -4,11 +4,11 @@ import pickle
 import pytest
 
 from helpers import DummyRequest, DummyRequestPair, DummyResponse
-from lahja import BaseEvent, Endpoint, UnexpectedResponse
+from lahja import AsyncioEndpoint, BaseEvent, UnexpectedResponse
 
 
 @pytest.mark.asyncio
-async def test_request(endpoint):
+async def test_request(endpoint, event_loop):
     endpoint.subscribe(
         DummyRequestPair,
         lambda ev: endpoint.broadcast_nowait(
@@ -207,7 +207,6 @@ async def test_wait_for(endpoint):
 
 @pytest.mark.asyncio
 async def test_wait_for_can_get_cancelled(endpoint):
-
     with pytest.raises(asyncio.TimeoutError):
         await asyncio.wait_for(endpoint.wait_for(DummyRequest), 0.01)
     await asyncio.sleep(0.01)
@@ -223,7 +222,6 @@ class RemoveItem(BaseEvent):
 
 @pytest.mark.asyncio
 async def test_exceptions_dont_stop_processing(capsys, endpoint):
-
     the_set = {1, 3}
 
     def handle(message):
@@ -255,7 +253,7 @@ async def test_exceptions_dont_stop_processing(capsys, endpoint):
 
 
 def test_pickle_fails():
-    endpoint = Endpoint()
+    endpoint = AsyncioEndpoint()
 
     with pytest.raises(Exception):
         pickle.dumps(endpoint)
