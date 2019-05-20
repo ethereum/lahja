@@ -51,22 +51,22 @@ async def test_request_can_get_cancelled(endpoint):
     assert item._id not in endpoint._futures
 
 
+class Wrong(BaseEvent):
+    pass
+
+
 @pytest.mark.asyncio
 async def test_response_must_match(endpoint):
-    endpoint.subscribe(
-        DummyRequestPair,
-        lambda ev: endpoint.broadcast_nowait(
-            # We intentionally broadcast an unexpected response. Mypy can't catch
-            # this but we ensure it is caught and raised during the processing.
-            DummyRequest(),
-            ev.broadcast_config(),
-        ),
-    )
+    async def do_serve_wrong_response():
+        req = await endpoint.wait_for(Request)
+        await endpoint.broadcast(Wrong(), req.broadcast_config())
 
-    await endpoint.wait_until_any_connection_subscribed_to(DummyRequestPair)
+    asyncio.ensure_future(do_serve_wrong_response())
+
+    await endpoint.wait_until_any_connection_subscribed_to(Request)
 
     with pytest.raises(UnexpectedResponse):
-        await endpoint.request(DummyRequestPair())
+        await endpoint.request(Request("test-wrong-response"))
 
 
 @pytest.mark.asyncio
@@ -93,7 +93,7 @@ async def test_stream_with_break(endpoint):
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert len(endpoint._queues[DummyRequest]) == 0
+    assert DummyRequest not in endpoint.subscribed_events
     assert stream_counter == 2
 
 
@@ -118,7 +118,7 @@ async def test_stream_with_num_events(endpoint):
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert len(endpoint._queues[DummyRequest]) == 0
+    assert DummyRequest not in endpoint.subscribed_events
     assert stream_counter == 2
 
 
@@ -152,7 +152,7 @@ async def test_stream_can_get_cancelled(endpoint):
 
     await asyncio.sleep(0.2)
     # Ensure the registration was cleaned up
-    assert len(endpoint._queues[DummyRequest]) == 0
+    assert DummyRequest not in endpoint.subscribed_events
     assert stream_counter == 2
 
     # clean up
@@ -190,7 +190,7 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint):
 
     await asyncio.sleep(0.1)
     # Ensure the registration was cleaned up
-    assert len(endpoint._queues[DummyRequest]) == 0
+    assert DummyRequest not in endpoint.subscribed_events
     assert stream_counter == 2
 
 
@@ -220,7 +220,7 @@ async def test_wait_for_can_get_cancelled(endpoint):
         await asyncio.wait_for(endpoint.wait_for(DummyRequest), 0.01)
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert len(endpoint._queues[DummyRequest]) == 0
+    assert DummyRequest not in endpoint.subscribed_events
 
 
 class RemoveItem(BaseEvent):
@@ -236,7 +236,7 @@ async def test_exceptions_dont_stop_processing(capsys, endpoint):
     def handle(message):
         the_set.remove(message.item)
 
-    endpoint.subscribe(RemoveItem, handle)
+    await endpoint.subscribe(RemoveItem, handle)
     await endpoint.wait_until_any_connection_subscribed_to(RemoveItem)
 
     # this call should work
