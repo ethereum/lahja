@@ -63,30 +63,30 @@ jobs:
       - image: circleci/python:3.6
         environment:
           TOXENV: lint
-  py36-core:
+  py36-core-asyncio:
     <<: *common
     docker:
       - image: circleci/python:3.6
         environment:
-          TOXENV: py36-core
-  py37-core:
+          TOXENV: py36-core-asyncio
+  py37-core-asyncio:
     <<: *common
     docker:
       - image: circleci/python:3.7
         environment:
-          TOXENV: py37-core
-  py36-snappy-core:
+          TOXENV: py37-core-asyncio
+  py36-snappy-core-asyncio:
     <<: *common
     docker:
       - image: circleci/python:3.6
         environment:
-          TOXENV: py36-snappy-core
-  py37-snappy-core:
+          TOXENV: py36-snappy-core-asyncio
+  py37-snappy-core-asyncio:
     <<: *common
     docker:
       - image: circleci/python:3.7
         environment:
-          TOXENV: py37-snappy-core
+          TOXENV: py37-snappy-core-asyncio
 workflows:
   version: 2
   test:
@@ -95,7 +95,7 @@ workflows:
       - snappy-benchmark
       - doctest
       - lint
-      - py36-core
-      - py37-core
-      - py36-snappy-core
-      - py37-snappy-core
+      - py36-core-asyncio
+      - py37-core-asyncio
+      - py36-snappy-core-asyncio
+      - py37-snappy-core-asyncio
