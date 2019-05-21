@@ -1,4 +1,3 @@
-import abc
 import asyncio
 from asyncio import StreamReader, StreamWriter
 import functools
@@ -30,14 +29,24 @@ import uuid
 from async_generator import asynccontextmanager
 
 from lahja._snappy import check_has_snappy_support
-from lahja.base import BaseEndpoint, TResponse, TStreamEvent, TSubscribeEvent
+from lahja.base import (
+    BaseEndpoint,
+    ConnectionAPI,
+    TResponse,
+    TStreamEvent,
+    TSubscribeEvent,
+)
 from lahja.common import (
     BaseEvent,
     BaseRequestResponseEvent,
     Broadcast,
     BroadcastConfig,
     ConnectionConfig,
+    Message,
+    Msg,
     Subscription,
+    SubscriptionsAck,
+    SubscriptionsUpdated,
 )
 from lahja.exceptions import (
     ConnectionAttemptRejected,
@@ -60,39 +69,10 @@ async def wait_for_path(path: pathlib.Path, timeout: int = 2) -> None:
     raise TimeoutError(f"IPC socket file {path} has not appeared in {timeout} seconds")
 
 
-class Message(abc.ABC):
-    """
-    Base class for all valid message types that an ``Endpoint`` can handle.
-    ``NamedTuple`` breaks multiple inheritance which means, instead of regular subclassing,
-    derived message types need to derive from ``NamedTuple`` directly and call
-    Message.register(DerivedType) in order to allow isinstance(obj, Message) checks.
-    """
-
-    pass
-
-
-class SubscriptionsUpdated(NamedTuple):
-    subscriptions: Set[Type[BaseEvent]]
-    response_expected: bool
-
-
-class SubscriptionsAck:
-    pass
-
-
-Message.register(Broadcast)
-Message.register(SubscriptionsUpdated)
-Message.register(SubscriptionsAck)
-
-
-# mypy doesn't appreciate the ABCMeta trick
-Msg = Union[Broadcast, SubscriptionsUpdated, SubscriptionsAck]
-
-
 SIZE_MARKER_LENGTH = 4
 
 
-class Connection:
+class Connection(ConnectionAPI):
     logger = logging.getLogger("lahja.endpoint.Connection")
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
@@ -101,8 +81,8 @@ class Connection:
         self._drain_lock = asyncio.Lock()
 
     @classmethod
-    async def connect_to(cls, path: str) -> "Connection":
-        reader, writer = await asyncio.open_unix_connection(path)
+    async def connect_to(cls, path: pathlib.Path) -> "Connection":
+        reader, writer = await asyncio.open_unix_connection(str(path))
         return cls(reader, writer)
 
     async def send_message(self, message: Msg) -> None:
@@ -516,7 +496,7 @@ class AsyncioEndpoint(BaseEndpoint):
             )
             return
 
-        conn = await Connection.connect_to(str(config.path))
+        conn = await Connection.connect_to(config.path)
         remote = OutboundConnection(config.name, conn)
         self._outbound_connections[config.name] = remote
 
