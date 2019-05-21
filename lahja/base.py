@@ -58,6 +58,16 @@ class EndpointAPI(ABC):
 
     name: str
 
+    @property
+    @abstractmethod
+    def is_running(self) -> bool:
+        ...
+
+    @property
+    @abstractmethod
+    def is_serving(self) -> bool:
+        ...
+
     #
     # Running and Server API
     #
@@ -69,11 +79,12 @@ class EndpointAPI(ABC):
         .. code-block::
 
             async with endpoint.run() as endpoint:
-                # endpoint running within context
-            # endpoint stopped after
+                ... # endpoint running within context
+            ... # endpoint stopped after
 
+        test
         """
-        pass
+        ...
 
     @classmethod
     @abstractmethod
@@ -84,11 +95,11 @@ class EndpointAPI(ABC):
         .. code-block::
 
             async with endpoint.serve():
-                # server running within context
-            # server stopped
+                ... # server running within context
+            ... # server stopped
 
         """
-        pass
+        ...
 
     #
     # Connection API
@@ -98,14 +109,14 @@ class EndpointAPI(ABC):
         """
         Establish a new connection to an endpoint.
         """
-        pass
+        ...
 
     @abstractmethod
     def is_connected_to(self, endpoint_name: str) -> bool:
         """
         Return whether this endpoint is connected to another endpoint with the given name.
         """
-        pass
+        ...
 
     @abstractmethod
     async def wait_until_any_connection_subscribed_to(
@@ -114,7 +125,7 @@ class EndpointAPI(ABC):
         """
         Block until any other endpoint has subscribed to the ``event`` from this endpoint.
         """
-        pass
+        ...
 
     async def wait_until_all_connections_subscribed_to(
         self, event: Type[BaseEvent]
@@ -137,7 +148,7 @@ class EndpointAPI(ABC):
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
-        pass
+        ...
 
     @abstractmethod
     async def request(
@@ -154,7 +165,7 @@ class EndpointAPI(ABC):
         should be broadcasted to. By default, requests are broadcasted across
         all connected endpoints with their consuming call sites.
         """
-        pass
+        ...
 
     @abstractmethod
     def subscribe(
@@ -167,7 +178,7 @@ class EndpointAPI(ABC):
         A handler is passed as a second argument an :class:`~lahja.common.Subscription` is returned
         to unsubscribe from the event if needed.
         """
-        pass
+        ...
 
     @abstractmethod
     async def stream(
@@ -186,7 +197,7 @@ class EndpointAPI(ABC):
         """
         Wait for a single instance of an event that matches the specified event type.
         """
-        pass
+        ...
 
 
 class BaseEndpoint(EndpointAPI):
