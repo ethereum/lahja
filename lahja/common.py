@@ -76,19 +76,6 @@ class BaseRequestResponseEvent(ABC, BaseEvent, Generic[TResponse]):
         raise NotImplementedError("Must be implemented by subsclasses")
 
 
-class TransparentEvent(BaseEvent):
-    """
-    This event is used to create artificial activity so that code that
-    blocks on a :meth:`~multiprocessing.queues.Queue.get` unblocks and
-    gets a chance to revalidate if it should continue to block for reading.
-    """
-
-    pass
-
-
-TRANSPARENT_EVENT = TransparentEvent()
-
-
 class ConnectionConfig(NamedTuple):
     """
     Configuration class needed to establish :class:`~lahja.endpoint.Endpoint` connections.
