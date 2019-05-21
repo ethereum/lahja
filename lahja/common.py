@@ -16,7 +16,7 @@ from typing import (  # noqa: F401
 from lahja.exceptions import BindError
 
 if TYPE_CHECKING:
-    from lahja.base import EndpointAPI
+    from lahja.base import EndpointAPI  # noqa: F401
 
 
 class Subscription:
@@ -89,6 +89,10 @@ class BaseRequestResponseEvent(ABC, BaseEvent, Generic[TResponse]):
         back to callsites that issued a `BaseRequestResponseEvent`
         """
         raise NotImplementedError("Must be implemented by subsclasses")
+
+
+class RemoteSubscriptionChanged(BaseEvent):
+    pass
 
 
 class ConnectionConfig(NamedTuple):

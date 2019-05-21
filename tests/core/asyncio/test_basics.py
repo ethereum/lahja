@@ -33,8 +33,7 @@ async def test_request_response(endpoint, event_loop):
         await endpoint.broadcast(Response(req.value), req.broadcast_config())
 
     asyncio.ensure_future(do_serve_response())
-
-    await endpoint.wait_until_any_connection_subscribed_to(Request)
+    await endpoint.wait_until_any_remote_subscribed_to(Request)
 
     response = await endpoint.request(Request("test-request"))
     assert isinstance(response, Response)
@@ -63,7 +62,7 @@ async def test_response_must_match(endpoint):
 
     asyncio.ensure_future(do_serve_wrong_response())
 
-    await endpoint.wait_until_any_connection_subscribed_to(Request)
+    await endpoint.wait_until_any_remote_subscribed_to(Request)
 
     with pytest.raises(UnexpectedResponse):
         await endpoint.request(Request("test-wrong-response"))
@@ -85,7 +84,7 @@ async def test_stream_with_break(endpoint):
                 break
 
     asyncio.ensure_future(stream_response())
-    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
+    await endpoint.wait_until_any_remote_subscribed_to(DummyRequest)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(5):
@@ -110,7 +109,7 @@ async def test_stream_with_num_events(endpoint):
             stream_counter += 1
 
     asyncio.ensure_future(stream_response())
-    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
+    await endpoint.wait_until_any_remote_subscribed_to(DummyRequest)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(3):
@@ -145,7 +144,7 @@ async def test_stream_can_get_cancelled(endpoint):
 
     stream_coro = asyncio.ensure_future(stream_response())
     cancel_coro = asyncio.ensure_future(cancel_soon())
-    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
+    await endpoint.wait_until_any_remote_subscribed_to(DummyRequest)
 
     for i in range(50):
         await endpoint.broadcast(DummyRequest())
@@ -174,7 +173,7 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint):
             await asyncio.sleep(0.01)
 
     task = asyncio.ensure_future(stream_response())
-    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
+    await endpoint.wait_until_any_remote_subscribed_to(DummyRequest)
 
     async def cancel_soon():
         while True:
@@ -207,7 +206,7 @@ async def test_wait_for(endpoint):
         received = request
 
     asyncio.ensure_future(stream_response())
-    await endpoint.wait_until_any_connection_subscribed_to(DummyRequest)
+    await endpoint.wait_until_any_remote_subscribed_to(DummyRequest)
     await endpoint.broadcast(DummyRequest())
 
     await asyncio.sleep(0.01)
@@ -237,7 +236,7 @@ async def test_exceptions_dont_stop_processing(capsys, endpoint):
         the_set.remove(message.item)
 
     await endpoint.subscribe(RemoveItem, handle)
-    await endpoint.wait_until_any_connection_subscribed_to(RemoveItem)
+    await endpoint.wait_until_any_remote_subscribed_to(RemoveItem)
 
     # this call should work
     await endpoint.broadcast(RemoveItem(1))

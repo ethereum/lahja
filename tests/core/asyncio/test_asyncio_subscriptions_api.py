@@ -186,7 +186,7 @@ def noop(event):
 
 
 @pytest.mark.asyncio
-async def test_asyncio_wait_until_any_connection_subscribed_to(
+async def test_asyncio_wait_until_any_remote_subscribed_to(
     client_with_three_connections
 ):
     client, server_a, server_b, server_c = client_with_three_connections
@@ -194,7 +194,7 @@ async def test_asyncio_wait_until_any_connection_subscribed_to(
     asyncio.ensure_future(server_a.subscribe(WaitSubscription, noop))
 
     await asyncio.wait_for(
-        client.wait_until_any_connection_subscribed_to(WaitSubscription), timeout=0.1
+        client.wait_until_any_remote_subscribed_to(WaitSubscription), timeout=0.1
     )
 
 
@@ -207,7 +207,7 @@ async def test_asyncio_wait_until_all_connection_subscribed_to(
     got_subscription = asyncio.Event()
 
     async def do_wait_subscriptions():
-        await client.wait_until_all_connections_subscribed_to(WaitSubscription)
+        await client.wait_until_all_remotes_subscribed_to(WaitSubscription)
         got_subscription.set()
 
     asyncio.ensure_future(do_wait_subscriptions())

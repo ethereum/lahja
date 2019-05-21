@@ -18,7 +18,7 @@ async def test_broadcasts_to_all_endpoints(triplet_of_endpoints):
         DummyRequestPair, tracker.track_and_broadcast_dummy(2, endpoint2)
     )
 
-    await endpoint3.wait_until_all_connections_subscribed_to(DummyRequestPair)
+    await endpoint3.wait_until_all_remotes_subscribed_to(DummyRequestPair)
 
     item = DummyRequestPair()
     response = await endpoint3.request(item)
@@ -48,7 +48,7 @@ async def test_broadcasts_to_specific_endpoint(triplet_of_endpoints):
         DummyRequestPair, tracker.track_and_broadcast_dummy(2, endpoint1)
     )
 
-    await endpoint3.wait_until_all_connections_subscribed_to(DummyRequestPair)
+    await endpoint3.wait_until_all_remotes_subscribed_to(DummyRequestPair)
 
     item = DummyRequestPair()
     response = await endpoint3.request(

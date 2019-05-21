@@ -48,6 +48,7 @@ from lahja.common import (
     ConnectionConfig,
     Message,
     Msg,
+    RemoteSubscriptionChanged,
     Subscription,
     SubscriptionsAck,
     SubscriptionsUpdated,
@@ -246,10 +247,6 @@ class RemoteEndpoint:
         async with self._received_subscription:
             await self._received_subscription.wait()
 
-    async def wait_until_subscribed_to(self, event: Type[BaseEvent]) -> None:
-        while event not in self.subscribed_messages:
-            await self.wait_until_subscription_received()
-
 
 @asynccontextmanager  # type: ignore
 async def run_remote_endpoint(remote: RemoteEndpoint) -> AsyncIterable[RemoteEndpoint]:
@@ -440,41 +437,16 @@ class AsyncioEndpoint(BaseEndpoint):
         for remote in tuple(self._full_connections.values()):
             await remote.notify_subscriptions_updated(subscribed_events)
 
-    async def wait_until_any_connection_subscribed_to(
-        self, event: Type[BaseEvent]
-    ) -> None:
+    def get_connected_endpoints_and_subscriptions(
+        self
+    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
         """
-        Block until any other endpoint has subscribed to the ``event`` from this endpoint.
+        Return all connected endpoints and their event type subscriptions to this endpoint.
         """
-        if len(self._full_connections) == 0:
-            raise Exception("there are no outbound connections!")
-
-        for outbound in self._full_connections.values():
-            if event in outbound.subscribed_messages:
-                return
-
-        coros = [
-            outbound.wait_until_subscribed_to(event)
+        return tuple(
+            (outbound.name, outbound.subscribed_messages)
             for outbound in self._full_connections.values()
-        ]
-        _, pending = await asyncio.wait(coros, return_when=asyncio.FIRST_COMPLETED)
-        (task.cancel() for task in pending)
-
-    async def wait_until_all_connections_subscribed_to(
-        self, event: Type[BaseEvent]
-    ) -> None:
-        """
-        Block until all other endpoints that we are connected to are subscribed to the ``event``
-        from this endpoint.
-        """
-        if len(self._full_connections) == 0:
-            raise Exception("there are no outbound connections!")
-
-        coros = [
-            outbound.wait_until_subscribed_to(event)
-            for outbound in self._full_connections.values()
-        ]
-        await asyncio.wait(coros, return_when=asyncio.ALL_COMPLETED)
+        )
 
     def _compress_event(self, event: BaseEvent) -> Union[BaseEvent, bytes]:
         if self.has_snappy_support:
@@ -563,7 +535,15 @@ class AsyncioEndpoint(BaseEndpoint):
         self._full_connections[config.name] = remote
 
         task = asyncio.ensure_future(self._handle_server(remote))
+        subscriptions_task = asyncio.ensure_future(
+            self.watch_outbound_subscriptions(remote)
+        )
+        subscriptions_task.add_done_callback(self._endpoint_tasks.remove)
+        self._endpoint_tasks.add(subscriptions_task)
+
         task.add_done_callback(self._endpoint_tasks.remove)
+        task.add_done_callback(lambda _: subscriptions_task.cancel())
+
         self._endpoint_tasks.add(task)
 
         # don't return control until the caller can safely call broadcast()
@@ -576,6 +556,13 @@ class AsyncioEndpoint(BaseEndpoint):
         finally:
             if remote.name is not None:
                 self._full_connections.pop(remote.name)
+
+    async def watch_outbound_subscriptions(self, outbound: RemoteEndpoint) -> None:
+        while outbound in self._full_connections.values():
+            await outbound.wait_until_subscription_received()
+            await self.broadcast(
+                RemoteSubscriptionChanged(), BroadcastConfig(internal=True)
+            )
 
     def is_connected_to(self, endpoint_name: str) -> bool:
         return endpoint_name in self._full_connections

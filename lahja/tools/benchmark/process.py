@@ -57,7 +57,7 @@ class DriverProcess:
         conn_config = ConnectionConfig.from_name(DRIVER_ENDPOINT)
         async with config.backend.Endpoint.serve(conn_config) as event_bus:
             await event_bus.connect_to_endpoints(*config.connected_endpoints)
-            await event_bus.wait_until_all_connections_subscribed_to(PerfMeasureEvent)
+            await event_bus.wait_until_all_remotes_subscribed_to(PerfMeasureEvent)
 
             counter = itertools.count()
             payload = b"\x00" * config.payload_bytes
@@ -95,7 +95,7 @@ class ConsumerProcess:
             await event_bus.connect_to_endpoints(
                 ConnectionConfig.from_name(REPORTER_ENDPOINT)
             )
-            await event_bus.wait_until_all_connections_subscribed_to(TotalRecordedEvent)
+            await event_bus.wait_until_all_remotes_subscribed_to(TotalRecordedEvent)
 
             stats = LocalStatistic()
             events = event_bus.stream(PerfMeasureEvent, num_events=num_events)

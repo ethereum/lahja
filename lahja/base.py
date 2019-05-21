@@ -27,6 +27,7 @@ from .common import (
     ConnectionConfig,
     Message,
     Msg,
+    RemoteSubscriptionChanged,
     Subscription,
 )
 
@@ -122,21 +123,13 @@ class EndpointAPI(ABC):
         ...
 
     @abstractmethod
-    async def wait_until_any_connection_subscribed_to(
-        self, event: Type[BaseEvent]
-    ) -> None:
+    def get_connected_endpoints_and_subscriptions(
+        self
+    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
         """
-        Block until any other endpoint has subscribed to the ``event`` from this endpoint.
+        Return all connected endpoints and their event type subscriptions to this endpoint.
         """
         ...
-
-    async def wait_until_all_connections_subscribed_to(
-        self, event: Type[BaseEvent]
-    ) -> None:
-        """
-        Block until all other endpoints that we are connected to are subscribed to the ``event``
-        from this endpoint.
-        """
 
     #
     # Event API
@@ -248,3 +241,86 @@ class BaseEndpoint(EndpointAPI):
         event = await agen.asend(None)
         await agen.aclose()
         return event
+
+    def is_remote_subscribed_to(
+        self, remote_endpoint: str, event_type: Type[BaseEvent]
+    ) -> bool:
+        """
+        Return ``True`` if the specified remote endpoint is subscribed to the specified event type
+        from this endpoint. Otherwise return ``False``.
+        """
+        for endpoint, subscriptions in self.get_connected_endpoints_and_subscriptions():
+            if endpoint != remote_endpoint:
+                continue
+
+            for subscribed_event_type in subscriptions:
+                if subscribed_event_type is event_type:
+                    return True
+
+        return False
+
+    def is_any_remote_subscribed_to(self, event_type: Type[BaseEvent]) -> bool:
+        """
+        Return ``True`` if at least one of the connected remote endpoints is subscribed to the
+        specified event type from this endpoint. Otherwise return ``False``.
+        """
+        for endpoint, subscriptions in self.get_connected_endpoints_and_subscriptions():
+            for subscribed_event_type in subscriptions:
+                if subscribed_event_type is event_type:
+                    return True
+
+        return False
+
+    def are_all_remotes_subscribed_to(self, event_type: Type[BaseEvent]) -> bool:
+        """
+        Return ``True`` if every connected remote endpoint is subscribed to the specified event
+        type from this endpoint. Otherwise return ``False``.
+        """
+        for endpoint, subscriptions in self.get_connected_endpoints_and_subscriptions():
+            if event_type not in subscriptions:
+                return False
+
+        return True
+
+    async def wait_until_remote_subscribed_to(
+        self, remote_endpoint: str, event: Type[BaseEvent]
+    ) -> None:
+        """
+        Block until the specified remote endpoint has subscribed to the specified event type
+        from this endpoint.
+        """
+
+        if self.is_remote_subscribed_to(remote_endpoint, event):
+            return
+
+        async for _ in self.stream(RemoteSubscriptionChanged):  # noqa: F841
+            if self.is_remote_subscribed_to(remote_endpoint, event):
+                return
+
+    async def wait_until_any_remote_subscribed_to(self, event: Type[BaseEvent]) -> None:
+        """
+        Block until any other remote endpoint has subscribed to the specified event type
+        from this endpoint.
+        """
+
+        if self.is_any_remote_subscribed_to(event):
+            return
+
+        async for _ in self.stream(RemoteSubscriptionChanged):  # noqa: F841
+            if self.is_any_remote_subscribed_to(event):
+                return
+
+    async def wait_until_all_remotes_subscribed_to(
+        self, event: Type[BaseEvent]
+    ) -> None:
+        """
+        Block until all currently connected remote endpoints are subscribed to the specified
+        event type from this endpoint.
+        """
+
+        if self.are_all_remotes_subscribed_to(event):
+            return
+
+        async for _ in self.stream(RemoteSubscriptionChanged):  # noqa: F841
+            if self.are_all_remotes_subscribed_to(event):
+                return
