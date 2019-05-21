@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import (  # noqa: F401
+    TYPE_CHECKING,
     Any,
     Callable,
     Generic,
@@ -10,6 +11,9 @@ from typing import (  # noqa: F401
     TypeVar,
     Union,
 )
+
+if TYPE_CHECKING:
+    from lahja.base import EndpointAPI
 
 
 class Subscription:
@@ -52,7 +56,15 @@ class BaseEvent:
 
     _origin = ""
     _id: Optional[str] = None
-    _config: Optional[BroadcastConfig] = None
+
+    is_bound = False
+
+    def bind(self, endpoint: "EndpointAPI", id: Optional[str]) -> None:
+        if self.is_bound:
+            raise RuntimeError("Event is already bound")
+        self._origin = endpoint.name
+        self._id = id
+        self.is_bound = True
 
     def broadcast_config(self, internal: bool = False) -> BroadcastConfig:
         if internal:

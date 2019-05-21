@@ -589,7 +589,13 @@ class AsyncioEndpoint(BaseEndpoint):
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
-        item._origin = self.name
+        await self._broadcast(item, config, None)
+
+    async def _broadcast(
+        self, item: BaseEvent, config: Optional[BroadcastConfig], id: Optional[str]
+    ) -> None:
+        item.bind(self, id)
+
         if config is not None and config.internal:
             # Internal events simply bypass going through the central event bus
             # and are directly put into the local receiving queue instead.
@@ -627,7 +633,7 @@ class AsyncioEndpoint(BaseEndpoint):
         accepting new messages this function will continue to accept them, which in the
         worst case could lead to runaway memory usage.
         """
-        asyncio.ensure_future(self.broadcast(item, config))
+        asyncio.ensure_future(self._broadcast(item, config, None))
 
     @check_event_loop
     async def request(
@@ -644,18 +650,17 @@ class AsyncioEndpoint(BaseEndpoint):
         should be broadcasted to. By default, requests are broadcasted across
         all connected endpoints with their consuming call sites.
         """
-        item._origin = self.name
-        item._id = str(uuid.uuid4())
+        request_id = str(uuid.uuid4())
 
         future: "asyncio.Future[TResponse]" = asyncio.Future()
-        self._futures[item._id] = future  # type: ignore
+        self._futures[request_id] = future  # type: ignore
         # mypy can't reconcile the TResponse with the declared type of
         # `self._futures`.
 
-        await self.broadcast(item, config)
+        await self._broadcast(item, config, request_id)
 
         future.add_done_callback(
-            functools.partial(self._remove_cancelled_future, item._id)
+            functools.partial(self._remove_cancelled_future, request_id)
         )
 
         result = await future
