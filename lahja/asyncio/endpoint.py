@@ -339,8 +339,8 @@ class AsyncioEndpoint(BaseEndpoint):
         self._internal_queue = asyncio.Queue()
         self._receiving_queue = asyncio.Queue()
 
-        asyncio.ensure_future(self._connect_receiving_queue())
-        asyncio.ensure_future(self._connect_internal_queue())
+        self._child_tasks.add(asyncio.ensure_future(self._connect_receiving_queue()))
+        self._child_tasks.add(asyncio.ensure_future(self._connect_internal_queue()))
         asyncio.ensure_future(self._start_server())
 
         self._running = True
@@ -467,7 +467,14 @@ class AsyncioEndpoint(BaseEndpoint):
     async def _connect_receiving_queue(self) -> None:
         self._receiving_loop_running.set()
         while self._running:
-            (item, config) = await self._receiving_queue.get()
+            try:
+                (item, config) = await self._receiving_queue.get()
+            except RuntimeError as err:
+                # do explicit check since RuntimeError is a bit generic and we
+                # only want to catch the closed event loop case here.
+                if str(err) == "Event loop is closed":
+                    break
+                raise
             try:
                 event = self._decompress_event(item)
                 self._process_item(event, config)
@@ -477,7 +484,14 @@ class AsyncioEndpoint(BaseEndpoint):
     async def _connect_internal_queue(self) -> None:
         self._internal_loop_running.set()
         while self._running:
-            (item, config) = await self._internal_queue.get()
+            try:
+                (item, config) = await self._internal_queue.get()
+            except RuntimeError as err:
+                # do explicit check since RuntimeError is a bit generic and we
+                # only want to catch the closed event loop case here.
+                if str(err) == "Event loop is closed":
+                    break
+                raise
             try:
                 self._process_item(item, config)
             except Exception:
