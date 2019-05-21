@@ -32,7 +32,6 @@ from async_generator import asynccontextmanager
 from lahja._snappy import check_has_snappy_support
 from lahja.base import BaseEndpoint, TResponse, TStreamEvent, TSubscribeEvent
 from lahja.common import (
-    TRANSPARENT_EVENT,
     BaseEvent,
     BaseRequestResponseEvent,
     Broadcast,
@@ -535,9 +534,6 @@ class AsyncioEndpoint(BaseEndpoint):
         return endpoint_name in self._outbound_connections
 
     def _process_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> None:
-        if item is TRANSPARENT_EVENT:
-            return
-
         event_type = type(item)
 
         if config is not None and config.filter_event_id in self._futures:
@@ -562,8 +558,6 @@ class AsyncioEndpoint(BaseEndpoint):
             return
 
         self._running = False
-        self._receiving_queue.put_nowait((TRANSPARENT_EVENT, None))
-        self._internal_queue.put_nowait((TRANSPARENT_EVENT, None))
         for task in self._child_tasks:
             task.cancel()
         self._server.close()
