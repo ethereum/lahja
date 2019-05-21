@@ -12,11 +12,11 @@ async def test_can_not_connect_conflicting_names():
 
     # We connect to our own Endpoint because for this test, it doesn't matter
     # if we use a foreign one or our own
-    await endpoint.connect_to_endpoints(own)
+    await endpoint.connect_to_endpoint(own)
 
     # Can't connect a second time
     with pytest.raises(ConnectionAttemptRejected):
-        await endpoint.connect_to_endpoints(own)
+        await endpoint.connect_to_endpoint(own)
 
     endpoint.stop()
 

@@ -509,6 +509,7 @@ class AsyncioEndpoint(BaseEndpoint):
         await self.connect_to_endpoint(endpoint)
 
     async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
+        self._throw_if_already_connected(config)
         if config.name in self._outbound_connections.keys():
             self.logger.warning(
                 "Tried to connect to %s but we are already connected to that Endpoint",
