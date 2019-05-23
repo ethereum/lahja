@@ -12,6 +12,8 @@ from typing import (  # noqa: F401
     Union,
 )
 
+from lahja.exceptions import BindError
+
 if TYPE_CHECKING:
     from lahja.base import EndpointAPI
 
@@ -61,7 +63,7 @@ class BaseEvent:
 
     def bind(self, endpoint: "EndpointAPI", id: Optional[str]) -> None:
         if self.is_bound:
-            raise RuntimeError("Event is already bound")
+            raise BindError("Event is already bound")
         self._origin = endpoint.name
         self._id = id
         self.is_bound = True

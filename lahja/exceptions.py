@@ -6,7 +6,13 @@ class LahjaError(Exception):
     pass
 
 
-class ConnectionAttemptRejected(Exception):
+class BindError(LahjaError):
+    """
+    Raise when an attempt was made to bind an event that is already bound.
+    """
+
+
+class ConnectionAttemptRejected(LahjaError):
     """
     Raised when an attempt was made to connect to an endpoint that is already connected.
     """
@@ -30,4 +36,8 @@ class UnexpectedResponse(LahjaError):
 
 
 class RemoteDisconnected(LahjaError):
+    """
+    Raise when a remote disconnects while we attempting to read a message.
+    """
+
     pass
