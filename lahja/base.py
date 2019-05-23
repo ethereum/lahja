@@ -151,6 +151,22 @@ class EndpointAPI(ABC):
         ...
 
     @abstractmethod
+    def broadcast_nowait(
+        self, item: BaseEvent, config: Optional[BroadcastConfig] = None
+    ) -> None:
+        """
+        A sync compatible version of :meth:`~lahja.base.EndpointAPI.broadcast`
+
+        .. warning::
+
+            Heavy use of :meth:`~lahja.base.EndpointAPI.broadcast_nowait` in
+            contiguous blocks of code without yielding to the `async`
+            implementation should be expected to cause problems.
+
+        """
+        pass
+
+    @abstractmethod
     async def request(
         self,
         item: BaseRequestResponseEvent[TResponse],

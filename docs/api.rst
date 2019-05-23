@@ -1,10 +1,25 @@
 API Docs
 ========
 
-Endpoint
---------
+Base Endpoint API
+-----------------
 
-.. automodule:: lahja.endpoint
+.. automodule:: lahja.base.EndpointAPI
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. automodule:: lahja.base.BaseEndpoint
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+AsyncioEndpoint
+---------------
+
+.. automodule:: lahja.asyncio.endpoint
     :members:
     :undoc-members:
     :show-inheritance:
@@ -18,6 +33,7 @@ ConnectionConfig
     :undoc-members:
     :show-inheritance:
 
+
 Exceptions
 ----------
 
@@ -25,6 +41,7 @@ Exceptions
     :members:
     :undoc-members:
     :show-inheritance:
+
 
 BaseEvent
 ---------
@@ -34,6 +51,7 @@ BaseEvent
     :undoc-members:
     :show-inheritance:
 
+
 BaseRequestResponseEvent
 ------------------------
 
@@ -41,6 +59,7 @@ BaseRequestResponseEvent
     :members:
     :undoc-members:
     :show-inheritance:
+
 
 BroadcastConfig
 ---------------
@@ -50,6 +69,7 @@ BroadcastConfig
     :undoc-members:
     :show-inheritance:
 
+
 Subscription
 ------------
 
@@ -57,5 +77,3 @@ Subscription
     :members:
     :undoc-members:
     :show-inheritance:
-
-
