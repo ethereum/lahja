@@ -3,40 +3,49 @@ import pickle
 
 import pytest
 
-from helpers import DummyRequest, DummyRequestPair, DummyResponse
-from lahja import AsyncioEndpoint, BaseEvent, UnexpectedResponse
+from helpers import DummyRequest, DummyRequestPair
+from lahja import (
+    AsyncioEndpoint,
+    BaseEvent,
+    BaseRequestResponseEvent,
+    UnexpectedResponse,
+)
+
+
+class Response(BaseEvent):
+    def __init__(self, value):
+        self.value = value
+
+
+class Request(BaseRequestResponseEvent[Response]):
+    @staticmethod
+    def expected_response_type():
+        return Response
+
+    def __init__(self, value):
+        self.value = value
 
 
 @pytest.mark.asyncio
-async def test_request(endpoint, event_loop):
-    endpoint.subscribe(
-        DummyRequestPair,
-        lambda ev: endpoint.broadcast_nowait(
-            # Accessing `ev.property_of_dummy_request_pair` here allows us to validate
-            # mypy has the type information we think it has. We run mypy on the tests.
-            DummyResponse(ev.property_of_dummy_request_pair),
-            ev.broadcast_config(),
-        ),
-    )
+async def test_request_response(endpoint, event_loop):
+    async def do_serve_response():
+        req = await endpoint.wait_for(Request)
+        await endpoint.broadcast(Response(req.value), req.broadcast_config())
 
-    await endpoint.wait_until_any_connection_subscribed_to(DummyRequestPair)
+    asyncio.ensure_future(do_serve_response())
 
-    item = DummyRequestPair()
-    response = await endpoint.request(item)
-    # Accessing `response.property_of_dummy_response` here allows us to validate
-    # mypy has the type information we think it has. We run mypy on the tests.
-    print(response.property_of_dummy_response)
-    assert isinstance(response, DummyResponse)
-    # Ensure the registration was cleaned up
-    assert item._id not in endpoint._futures
+    await endpoint.wait_until_any_connection_subscribed_to(Request)
+
+    response = await endpoint.request(Request("test-request"))
+    assert isinstance(response, Response)
+    assert response.value == "test-request"
 
 
 @pytest.mark.asyncio
 async def test_request_can_get_cancelled(endpoint):
-
     item = DummyRequestPair()
     with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(endpoint.request(item), 0.01)
+        await asyncio.wait_for(endpoint.request(item), 0.0001)
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
     assert item._id not in endpoint._futures
@@ -253,7 +262,7 @@ async def test_exceptions_dont_stop_processing(capsys, endpoint):
 
 
 def test_pickle_fails():
-    endpoint = AsyncioEndpoint()
+    endpoint = AsyncioEndpoint("pickle-test")
 
     with pytest.raises(Exception):
         pickle.dumps(endpoint)

@@ -3,7 +3,7 @@ from asyncio import StreamReader, StreamWriter
 import functools
 import itertools
 import logging
-import pathlib
+from pathlib import Path
 import pickle
 import time
 import traceback
@@ -50,13 +50,12 @@ from lahja.common import (
 )
 from lahja.exceptions import (
     ConnectionAttemptRejected,
-    NotServing,
     RemoteDisconnected,
     UnexpectedResponse,
 )
 
 
-async def wait_for_path(path: pathlib.Path, timeout: int = 2) -> None:
+async def wait_for_path(path: Path, timeout: int = 2) -> None:
     """
     Wait for the path to appear at ``path``
     """
@@ -81,7 +80,7 @@ class Connection(ConnectionAPI):
         self._drain_lock = asyncio.Lock()
 
     @classmethod
-    async def connect_to(cls, path: pathlib.Path) -> "Connection":
+    async def connect_to(cls, path: Path) -> "Connection":
         reader, writer = await asyncio.open_unix_connection(str(path))
         return cls(reader, writer)
 
@@ -238,39 +237,45 @@ class AsyncioEndpoint(BaseEndpoint):
     as well as within a single process via various event-driven APIs.
     """
 
-    _name: str
-    _ipc_path: pathlib.Path
+    _ipc_path: Path
 
     _receiving_queue: "asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]"
     _receiving_loop_running: asyncio.Event
 
-    _internal_queue: "asyncio.Queue[Tuple[BaseEvent, Optional[BroadcastConfig]]]"
-    _internal_loop_running: asyncio.Event
+    _loop: Optional[asyncio.AbstractEventLoop] = None
 
-    _server_running: asyncio.Event
+    def __init__(self, name: str) -> None:
+        self.name = name
 
-    _loop: Optional[asyncio.AbstractEventLoop]
-
-    def __init__(self) -> None:
         self._outbound_connections: Dict[str, OutboundConnection] = {}
         self._inbound_connections: Set[InboundConnection] = set()
+
         self._futures: Dict[Optional[str], "asyncio.Future[BaseEvent]"] = {}
         self._handler: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
         self._queues: Dict[Type[BaseEvent], List["asyncio.Queue[BaseEvent]"]] = {}
 
-        self._child_tasks: Set["asyncio.Future[Any]"] = set()
+        self._endpoint_tasks: Set["asyncio.Future[Any]"] = set()
+        self._server_tasks: Set["asyncio.Future[Any]"] = set()
 
         self._running = False
-        self._loop = None
+        self._serving = False
 
     @property
-    def ipc_path(self) -> pathlib.Path:
+    def is_running(self) -> bool:
+        return self._running
+
+    @property
+    def is_serving(self) -> bool:
+        return self._serving
+
+    @property
+    def ipc_path(self) -> Path:
         return self._ipc_path
 
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
-            raise NotServing("Endpoint isn't serving yet. Call `start_serving` first.")
+            raise AttributeError("Endpoint does not have an event loop set.")
 
         return self._loop
 
@@ -293,56 +298,45 @@ class AsyncioEndpoint(BaseEndpoint):
 
         return cast(TFunc, run)
 
-    @property
-    def name(  # type: ignore  # mypy thinks the signature does not match EndpointAPI
-        self
-    ) -> str:
-        return self._name
-
     # This property gets assigned during class creation.  This should be ok
     # since snappy support is defined as the module being importable and that
     # should not change during the lifecycle of the python process.
     has_snappy_support = check_has_snappy_support()
 
     @check_event_loop
-    async def start_serving(self, connection_config: ConnectionConfig) -> None:
+    async def start(self) -> None:
+        if self.is_running:
+            raise RuntimeError(f"Endpoint {self.name} is already running")
+        self._receiving_loop_running = asyncio.Event()
+        self._receiving_queue = asyncio.Queue()
+
+        self._running = True
+
+        self._endpoint_tasks.add(asyncio.ensure_future(self._connect_receiving_queue()))
+
+        await self._receiving_loop_running.wait()
+        self.logger.debug("Endpoint[%s]: running", self.name)
+
+    @check_event_loop
+    async def start_server(self, ipc_path: Path) -> None:
         """
         Start serving this :class:`~lahja.asyncio.AsyncioEndpoint` so that it
         can receive events. Await until the
         :class:`~lahja.asyncio.AsyncioEndpoint` is ready.
         """
-        self._name = connection_config.name
-        self._ipc_path = connection_config.path
-        self._internal_loop_running = asyncio.Event()
-        self._receiving_loop_running = asyncio.Event()
-        self._server_running = asyncio.Event()
-        self._internal_queue = asyncio.Queue()
-        self._receiving_queue = asyncio.Queue()
+        if not self.is_running:
+            raise RuntimeError(f"Endpoint {self.name} must be running to start server")
+        elif self.is_serving:
+            raise RuntimeError(f"Endpoint {self.name} is already serving")
 
-        self._child_tasks.add(asyncio.ensure_future(self._connect_receiving_queue()))
-        self._child_tasks.add(asyncio.ensure_future(self._connect_internal_queue()))
-        asyncio.ensure_future(self._start_server())
+        self._ipc_path = ipc_path
 
-        self._running = True
+        self._serving = True
 
-        await self.wait_until_serving()
-
-    @check_event_loop
-    async def wait_until_serving(self) -> None:
-        """
-        Await until the ``Endpoint`` is ready to receive events.
-        """
-        await asyncio.gather(
-            self._receiving_loop_running.wait(),
-            self._internal_loop_running.wait(),
-            self._server_running.wait(),
-        )
-
-    async def _start_server(self) -> None:
         self._server = await asyncio.start_unix_server(
             self._accept_conn, path=str(self.ipc_path)
         )
-        self._server_running.set()
+        self.logger.debug("Endpoint[%s]: server started", self.name)
 
     def receive_message(self, message: Broadcast) -> None:
         self._receiving_queue.put_nowait((message.event, message.config))
@@ -354,8 +348,8 @@ class AsyncioEndpoint(BaseEndpoint):
 
         task = asyncio.ensure_future(remote.run())
         task.add_done_callback(lambda _: self._inbound_connections.remove(remote))
-        task.add_done_callback(self._child_tasks.remove)
-        self._child_tasks.add(task)
+        task.add_done_callback(self._server_tasks.remove)
+        self._server_tasks.add(task)
 
         # the Endpoint on the other end blocks until it receives this message
         await remote.notify_subscriptions_updated(self.subscribed_events)
@@ -446,7 +440,7 @@ class AsyncioEndpoint(BaseEndpoint):
 
     async def _connect_receiving_queue(self) -> None:
         self._receiving_loop_running.set()
-        while self._running:
+        while self.is_running:
             try:
                 (item, config) = await self._receiving_queue.get()
             except RuntimeError as err:
@@ -458,22 +452,6 @@ class AsyncioEndpoint(BaseEndpoint):
             try:
                 event = self._decompress_event(item)
                 self._process_item(event, config)
-            except Exception:
-                traceback.print_exc()
-
-    async def _connect_internal_queue(self) -> None:
-        self._internal_loop_running.set()
-        while self._running:
-            try:
-                (item, config) = await self._internal_queue.get()
-            except RuntimeError as err:
-                # do explicit check since RuntimeError is a bit generic and we
-                # only want to catch the closed event loop case here.
-                if str(err) == "Event loop is closed":
-                    break
-                raise
-            try:
-                self._process_item(item, config)
             except Exception:
                 traceback.print_exc()
 
@@ -519,8 +497,8 @@ class AsyncioEndpoint(BaseEndpoint):
         task.add_done_callback(
             lambda _: self._outbound_connections.pop(config.name, None)
         )
-        task.add_done_callback(self._child_tasks.remove)
-        self._child_tasks.add(task)
+        task.add_done_callback(self._endpoint_tasks.remove)
+        self._endpoint_tasks.add(task)
 
         # don't return control until the caller can safely call broadcast()
         await remote.wait_until_subscription_received()
@@ -545,23 +523,42 @@ class AsyncioEndpoint(BaseEndpoint):
             for handler in self._handler[event_type]:
                 handler(item)
 
+    def stop_server(self) -> None:
+        if not self.is_serving:
+            return
+        self._serving = False
+
+        self._server.close()
+
+        for task in self._server_tasks:
+            task.cancel()
+
+        self.ipc_path.unlink()
+        self.logger.debug("Endpoint[%s]: server stopped", self.name)
+
     def stop(self) -> None:
         """
         Stop the :class:`~lahja.asyncio.AsyncioEndpoint` from receiving further events.
         """
-        if not self._running:
+        if not self.is_running:
             return
 
+        self.stop_server()
+
         self._running = False
-        for task in self._child_tasks:
+
+        for task in self._endpoint_tasks:
             task.cancel()
-        self._server.close()
-        self.ipc_path.unlink()
+
+        self.logger.debug("Endpoint[%s]: stopped", self.name)
 
     @asynccontextmanager  # type: ignore
     async def run(self) -> AsyncIterator["AsyncioEndpoint"]:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
+
+        await self.start()
+
         try:
             yield self
         finally:
@@ -570,9 +567,9 @@ class AsyncioEndpoint(BaseEndpoint):
     @classmethod
     @asynccontextmanager  # type: ignore
     async def serve(cls, config: ConnectionConfig) -> AsyncIterator["AsyncioEndpoint"]:
-        endpoint = cls()
+        endpoint = cls(config.name)
         async with endpoint.run():
-            await endpoint.start_serving(config)
+            await endpoint.start_server(config.path)
             yield endpoint
 
     async def broadcast(
@@ -586,9 +583,9 @@ class AsyncioEndpoint(BaseEndpoint):
         """
         item._origin = self.name
         if config is not None and config.internal:
-            # Internal events simply bypass going through the central event bus
-            # and are directly put into the local receiving queue instead.
-            self._internal_queue.put_nowait((item, config))
+            # Internal events simply bypass going over the event bus and are
+            # processed immediately.
+            self._process_item(item, config)
             return
 
         # Broadcast to every connected Endpoint that is allowed to receive the event
