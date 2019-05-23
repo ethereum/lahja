@@ -150,10 +150,7 @@ class EndpointAPI(ABC):
 
             Heavy use of :meth:`~lahja.base.EndpointAPI.broadcast_nowait` in
             contiguous blocks of code without yielding to the `async`
-            implementation should be expected to cause problems.  Without
-            yielding, the braodcasted events will typically build back-pressure
-            either in the form of unbounded memory growth or errors due to full
-            queues.
+            implementation should be expected to cause problems.
 
         """
         pass
