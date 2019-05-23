@@ -232,6 +232,7 @@ class OutboundConnection:
             if not config.allowed_to_receive(self.name):
                 return False
             elif config.filter_event_id is not None:
+                # the item is a response to a request.
                 return True
 
         return type(item) in self.subscribed_messages
