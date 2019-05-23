@@ -6,6 +6,7 @@ from typing import (  # noqa: F401
     Generic,
     NamedTuple,
     Optional,
+    Set,
     Type,
     TypeVar,
     Union,
@@ -99,3 +100,32 @@ class ConnectionConfig(NamedTuple):
 class Broadcast(NamedTuple):
     event: Union[BaseEvent, bytes]
     config: Optional[BroadcastConfig]
+
+
+class Message(ABC):
+    """
+    Base class for all valid message types that an ``Endpoint`` can handle.
+    ``NamedTuple`` breaks multiple inheritance which means, instead of regular subclassing,
+    derived message types need to derive from ``NamedTuple`` directly and call
+    Message.register(DerivedType) in order to allow isinstance(obj, Message) checks.
+    """
+
+    pass
+
+
+class SubscriptionsUpdated(NamedTuple):
+    subscriptions: Set[Type[BaseEvent]]
+    response_expected: bool
+
+
+class SubscriptionsAck:
+    pass
+
+
+Message.register(Broadcast)
+Message.register(SubscriptionsUpdated)
+Message.register(SubscriptionsAck)
+
+
+# mypy doesn't appreciate the ABCMeta trick
+Msg = Union[Broadcast, SubscriptionsUpdated, SubscriptionsAck]

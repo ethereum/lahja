@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
+from pathlib import Path
 from typing import (  # noqa: F401
     Any,
     AsyncContextManager,
@@ -23,6 +24,8 @@ from .common import (
     BaseRequestResponseEvent,
     BroadcastConfig,
     ConnectionConfig,
+    Message,
+    Msg,
     Subscription,
 )
 
@@ -30,6 +33,21 @@ TResponse = TypeVar("TResponse", bound=BaseEvent)
 TWaitForEvent = TypeVar("TWaitForEvent", bound=BaseEvent)
 TSubscribeEvent = TypeVar("TSubscribeEvent", bound=BaseEvent)
 TStreamEvent = TypeVar("TStreamEvent", bound=BaseEvent)
+
+
+class ConnectionAPI(ABC):
+    @classmethod
+    @abstractmethod
+    async def connect_to(cls, path: Path) -> "ConnectionAPI":
+        ...
+
+    @abstractmethod
+    async def send_message(self, message: Msg) -> None:
+        pass
+
+    @abstractmethod
+    async def read_message(self) -> Message:
+        pass
 
 
 class EndpointAPI(ABC):
