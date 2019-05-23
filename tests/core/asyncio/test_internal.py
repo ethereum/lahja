@@ -22,8 +22,10 @@ async def test_internal_propagation(pair_of_endpoints):
 
     asyncio.ensure_future(do_wait_for(endpoint_a, got_by_endpoint_a))
     will_not_finish = asyncio.ensure_future(do_wait_for(endpoint_b, got_by_endpoint_b))
+
     # give subscriptions time to update
-    await asyncio.sleep(0.01)
+    await endpoint_a.wait_until_all_connections_subscribed_to(Internal)
+    await endpoint_b.wait_until_all_connections_subscribed_to(Internal)
 
     # now broadcast a few over the internal bus on `A`
     for _ in range(5):

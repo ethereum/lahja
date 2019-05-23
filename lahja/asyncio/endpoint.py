@@ -583,8 +583,8 @@ class AsyncioEndpoint(BaseEndpoint):
         """
         item._origin = self.name
         if config is not None and config.internal:
-            # Internal events simply bypass going through the central event bus
-            # and are directly put into the local receiving queue instead.
+            # Internal events simply bypass going over the event bus and are
+            # processed immediately.
             self._process_item(item, config)
             return
 
