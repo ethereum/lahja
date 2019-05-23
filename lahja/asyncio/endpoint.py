@@ -96,6 +96,13 @@ class Connection(ConnectionAPI):
                 await self.writer.drain()
         except (BrokenPipeError, ConnectionResetError):
             raise RemoteDisconnected()
+        except RuntimeError as err:
+            # We don't do a pre-check for a closed writer since this is a performance critical
+            # path. We also don't want to swallow runtime errors unrelated to closed handlers.
+            if "handler is closed" in str(err):
+                self.logger.warning("Failed to send %s. Handler closed.", message)
+                raise RemoteDisconnected from err
+            raise
 
     async def read_message(self) -> Message:
         if self.reader.at_eof():
