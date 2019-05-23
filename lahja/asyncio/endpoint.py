@@ -208,14 +208,14 @@ class OutboundConnection:
                 await self.send_message(SubscriptionsAck())
 
     def can_send_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> bool:
-        is_response = config is not None and config.filter_event_id is not None
-        passes_config = config is None or config.allowed_to_receive(self.name)
-        passes_filter = type(item) in self.subscribed_messages
+        if config is not None:
+            if not config.allowed_to_receive(self.name):
+                return False
+            elif config.filter_event_id is not None:
+                # the item is a response to a request.
+                return True
 
-        if not passes_config:
-            return False
-
-        return is_response or passes_filter
+        return type(item) in self.subscribed_messages
 
     async def send_message(self, message: Msg) -> None:
         await self.conn.send_message(message)
