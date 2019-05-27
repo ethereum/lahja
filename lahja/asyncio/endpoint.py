@@ -76,7 +76,7 @@ SIZE_MARKER_LENGTH = 4
 
 
 class Connection(ConnectionAPI):
-    logger = logging.getLogger("lahja.endpoint.Connection")
+    logger = logging.getLogger("lahja.endpoint.asyncio.Connection")
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         self.writer = writer
@@ -131,7 +131,7 @@ class RemoteEndpoint:
             an event meant to be processed by the endpoint.
     """
 
-    logger = logging.getLogger("lahja.endpoint.InboundConnection")
+    logger = logging.getLogger("lahja.endpoint.asyncio.RemoteEndpoint")
 
     def __init__(
         self,
@@ -262,8 +262,9 @@ SubscriptionSyncHandler = Callable[[BaseEvent], Any]
 
 class AsyncioEndpoint(BaseEndpoint):
     """
-    The :class:`~lahja.asyncio.AsyncioEndpoint` enables communication between different processes
-    as well as within a single process via various event-driven APIs.
+    The :class:`~lahja.endpoint.asyncio.AsyncioEndpoint` enables communication
+    between different processes as well as within a single process via various
+    event-driven APIs.
     """
 
     _ipc_path: Path
@@ -373,9 +374,9 @@ class AsyncioEndpoint(BaseEndpoint):
     @check_event_loop
     async def start_server(self, ipc_path: Path) -> None:
         """
-        Start serving this :class:`~lahja.asyncio.AsyncioEndpoint` so that it
+        Start serving this :class:`~lahja.endpoint.asyncio.AsyncioEndpoint` so that it
         can receive events. Await until the
-        :class:`~lahja.asyncio.AsyncioEndpoint` is ready.
+        :class:`~lahja.endpoint.asyncio.AsyncioEndpoint` is ready.
         """
         if not self.is_running:
             raise RuntimeError(f"Endpoint {self.name} must be running to start server")
@@ -611,7 +612,7 @@ class AsyncioEndpoint(BaseEndpoint):
 
     def stop(self) -> None:
         """
-        Stop the :class:`~lahja.asyncio.AsyncioEndpoint` from receiving further events.
+        Stop the :class:`~lahja.endpoint.asyncio.AsyncioEndpoint` from receiving further events.
         """
         if not self.is_running:
             return

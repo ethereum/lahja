@@ -19,7 +19,7 @@ Base Endpoint API
 AsyncioEndpoint
 ---------------
 
-.. automodule:: lahja.asyncio.endpoint
+.. automodule:: lahja.endpoint.asyncio.endpoint
     :members:
     :undoc-members:
     :show-inheritance:
@@ -28,7 +28,7 @@ AsyncioEndpoint
 ConnectionConfig
 ----------------
 
-.. autoclass:: lahja.endpoint.ConnectionConfig
+.. autoclass:: lahja.common.ConnectionConfig
     :members:
     :undoc-members:
     :show-inheritance:
