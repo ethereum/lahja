@@ -5,6 +5,7 @@ from typing import (  # noqa: F401
     Any,
     AsyncContextManager,
     AsyncGenerator,
+    Awaitable,
     Callable,
     Dict,
     Iterable,
@@ -55,6 +56,8 @@ class EndpointAPI(ABC):
     The :class:`~lahja.endpoint.Endpoint` enables communication between different processes
     as well as within a single process via various event-driven APIs.
     """
+
+    __slots__ = ("name",)
 
     name: str
 
@@ -184,10 +187,10 @@ class EndpointAPI(ABC):
         ...
 
     @abstractmethod
-    def subscribe(
+    async def subscribe(
         self,
         event_type: Type[TSubscribeEvent],
-        handler: Callable[[TSubscribeEvent], None],
+        handler: Callable[[TSubscribeEvent], Union[Any, Awaitable[Any]]],
     ) -> Subscription:
         """
         Subscribe to receive updates for any event that matches the specified event type.
