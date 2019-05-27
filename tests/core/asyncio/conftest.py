@@ -10,7 +10,7 @@ def generate_unique_name():
     return str(uuid.uuid4())
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 async def endpoint(event_loop, ipc_base_path):
     config = ConnectionConfig.from_name(generate_unique_name(), base_path=ipc_base_path)
     async with AsyncioEndpoint.serve(config) as endpoint:
@@ -21,7 +21,7 @@ async def endpoint(event_loop, ipc_base_path):
         yield endpoint
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 async def pair_of_endpoints(event_loop, ipc_base_path):
     config_1 = ConnectionConfig.from_name(
         generate_unique_name(), base_path=ipc_base_path
@@ -37,7 +37,7 @@ async def pair_of_endpoints(event_loop, ipc_base_path):
             yield endpoint1, endpoint2
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 async def triplet_of_endpoints(event_loop, ipc_base_path):
     config_1 = ConnectionConfig.from_name(
         generate_unique_name(), base_path=ipc_base_path
