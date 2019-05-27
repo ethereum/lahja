@@ -18,6 +18,7 @@ from typing import (  # noqa: F401
     Callable,
     DefaultDict,
     Dict,
+    Iterable,
     List,
     NamedTuple,
     Optional,
@@ -807,11 +808,13 @@ class AsyncioEndpoint(BaseEndpoint):
         self._queues[event_type].append(casted_queue)
         await self._notify_subscriptions_changed()
 
+        iterations: Iterable[int]
+
         if num_events is None:
             # loop forever
-            iterations = itertools.repeat(True)
+            iterations = itertools.count()
         else:
-            iterations = itertools.repeat(True, num_events)
+            iterations = range(num_events)
 
         try:
             for _ in iterations:

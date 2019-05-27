@@ -1,6 +1,6 @@
-from typing import NamedTuple
+from typing import NamedTuple, Type
 
-from lahja import BaseEvent
+from lahja import BaseEvent, BaseRequestResponseEvent
 
 
 class RawMeasureEntry(NamedTuple):
@@ -19,6 +19,21 @@ class PerfMeasureEvent(BaseEvent):
         self.payload = payload
         self.index = index
         self.sent_at = sent_at
+
+
+class PerfMeasureResponse(BaseEvent):
+    pass
+
+
+class PerfMeasureRequest(BaseRequestResponseEvent[PerfMeasureResponse]):
+    def __init__(self, payload: bytes, index: int, sent_at: float) -> None:
+        self.payload = payload
+        self.index = index
+        self.sent_at = sent_at
+
+    @staticmethod
+    def expected_response_type() -> Type[PerfMeasureResponse]:
+        return PerfMeasureResponse
 
 
 class ShutdownEvent(BaseEvent):
