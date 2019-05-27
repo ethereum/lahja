@@ -219,6 +219,12 @@ class BaseEndpoint(EndpointAPI):
 
     logger = logging.getLogger("lahja.endpoint.Endpoint")
 
+    def __str__(self) -> str:
+        return f"Endpoint[{self.name}]"
+
+    def __repr__(self) -> str:
+        return f"<{self.name}>"
+
     #
     # Common implementations
     #

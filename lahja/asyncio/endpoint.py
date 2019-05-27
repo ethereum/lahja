@@ -19,6 +19,7 @@ from typing import (  # noqa: F401
     DefaultDict,
     Dict,
     Iterable,
+    Iterator,
     List,
     NamedTuple,
     Optional,
@@ -29,7 +30,6 @@ from typing import (  # noqa: F401
     Union,
     cast,
 )
-import uuid
 
 from async_generator import asynccontextmanager
 
@@ -50,6 +50,7 @@ from lahja.common import (
     Message,
     Msg,
     RemoteSubscriptionChanged,
+    RequestIDGenerator,
     Subscription,
     SubscriptionsAck,
     SubscriptionsUpdated,
@@ -59,6 +60,7 @@ from lahja.exceptions import (
     RemoteDisconnected,
     UnexpectedResponse,
 )
+from lahja.typing import RequestID
 
 
 async def wait_for_path(path: Path, timeout: int = 2) -> None:
@@ -277,7 +279,7 @@ class AsyncioEndpoint(BaseEndpoint):
     _receiving_queue: "asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]"
     _receiving_loop_running: asyncio.Event
 
-    _futures: Dict[Optional[str], "asyncio.Future[BaseEvent]"]
+    _futures: Dict[RequestID, "asyncio.Future[BaseEvent]"]
 
     _full_connections: Dict[str, RemoteEndpoint]
     _half_connections: Set[RemoteEndpoint]
@@ -286,9 +288,17 @@ class AsyncioEndpoint(BaseEndpoint):
     _sync_handler: DefaultDict[Type[BaseEvent], List[SubscriptionSyncHandler]]
 
     _loop: Optional[asyncio.AbstractEventLoop] = None
+    _get_request_id: Iterator[RequestID]
 
     def __init__(self, name: str) -> None:
         self.name = name
+
+        try:
+            self._get_request_id = RequestIDGenerator(name.encode("ascii") + b":")
+        except UnicodeDecodeError:
+            raise Exception(
+                f"TODO: Invalid endpoint name: '{name}'. Must be ASCII encodable string"
+            )
 
         # storage containers for inbound and outbound connections to other
         # endpoints
@@ -296,7 +306,7 @@ class AsyncioEndpoint(BaseEndpoint):
         self._half_connections = set()
 
         # storage for futures which are waiting for a response.
-        self._futures: Dict[Optional[str], "asyncio.Future[BaseEvent]"] = {}
+        self._futures: Dict[RequestID, "asyncio.Future[BaseEvent]"] = {}
 
         # handlers for event subscriptions.  These are
         # intentionally stored separately so that the cost of
@@ -653,7 +663,10 @@ class AsyncioEndpoint(BaseEndpoint):
         await self._broadcast(item, config, None)
 
     async def _broadcast(
-        self, item: BaseEvent, config: Optional[BroadcastConfig], id: Optional[str]
+        self,
+        item: BaseEvent,
+        config: Optional[BroadcastConfig],
+        id: Optional[RequestID],
     ) -> None:
         item.bind(self, id)
 
@@ -711,7 +724,7 @@ class AsyncioEndpoint(BaseEndpoint):
         should be broadcasted to. By default, requests are broadcasted across
         all connected endpoints with their consuming call sites.
         """
-        request_id = str(uuid.uuid4())
+        request_id = next(self._get_request_id)
 
         future: "asyncio.Future[TResponse]" = asyncio.Future()
         self._futures[request_id] = future  # type: ignore
@@ -734,7 +747,9 @@ class AsyncioEndpoint(BaseEndpoint):
 
         return result
 
-    def _remove_cancelled_future(self, id: str, future: "asyncio.Future[Any]") -> None:
+    def _remove_cancelled_future(
+        self, id: RequestID, future: "asyncio.Future[Any]"
+    ) -> None:
         try:
             future.exception()
         except asyncio.CancelledError:
