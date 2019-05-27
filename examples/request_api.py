@@ -3,7 +3,7 @@ import multiprocessing
 import time
 
 from lahja import (
-    Endpoint,
+    AsyncioEndpoint,
     BaseEvent,
     BaseRequestResponseEvent,
     BroadcastConfig,
@@ -19,7 +19,6 @@ class DeliverSomethingResponse(BaseEvent):
 
 # Define request / response pair
 class GetSomethingRequest(BaseRequestResponseEvent[DeliverSomethingResponse]):
-
     @staticmethod
     def expected_response_type():
         return DeliverSomethingResponse
@@ -28,22 +27,17 @@ class GetSomethingRequest(BaseRequestResponseEvent[DeliverSomethingResponse]):
 # Base functions for first process
 def spawn_proc1():
     loop = asyncio.get_event_loop()
-    loop.ensure_future(run_proc1())
-    loop.run_forever()
+    loop.run_until_complete(run_proc1())
 
 
 async def run_proc1():
-    endpoint = Endpoint()
-    await endpoint.start_serving(ConnectionConfig.from_name('e1'))
-    await endpoint.connect_to_endpoints(
-        ConnectionConfig.from_name('e2'),
-    )
-    print("subscribing")
-    # Listen for `GetSomethingRequest`'s
-    endpoint.subscribe(GetSomethingRequest, lambda event:
-        # Send a response back to *only* who made that request
-        endpoint.broadcast_nowait(DeliverSomethingResponse("Yay"), event.broadcast_config())
-    )
+    config = ConnectionConfig.from_name("e1")
+    async with AsyncioEndpoint.serve(config) as endpoint:
+        await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e2"))
+        async for event in endpoint.stream(GetSomethingRequest, num_events=3):
+            await endpoint.broadcast(
+                DeliverSomethingResponse("Yay"), event.broadcast_config()
+            )
 
 
 # Base functions for second process
@@ -53,23 +47,24 @@ def run_proc2():
 
 
 async def proc2_worker():
-    endpoint = Endpoint()
-    await endpoint.start_serving(ConnectionConfig.from_name('e2'))
-    await endpoint.connect_to_endpoints(
-        ConnectionConfig.from_name('e1'),
-    )
-    for i in range(3):
-        print("Requesting")
-        result = await endpoint.request(GetSomethingRequest())
-        print(f"Got answer: {result.payload}")
+    config = ConnectionConfig.from_name("e2")
+    async with AsyncioEndpoint.serve(config) as endpoint:
+        await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e1"))
+        await endpoint.wait_until_any_remote_subscribed_to(GetSomethingRequest)
+
+        for i in range(3):
+            print("Requesting")
+            result = await endpoint.request(GetSomethingRequest())
+            print(f"Got answer: {result.payload}")
+
 
 if __name__ == "__main__":
 
-    multiprocessing.set_start_method('spawn')
+    multiprocessing.set_start_method("spawn")
 
     p1 = multiprocessing.Process(target=spawn_proc1)
     p1.start()
 
     p2 = multiprocessing.Process(target=run_proc2)
     p2.start()
-    asyncio.get_event_loop().run_forever()
+    p1.join()
