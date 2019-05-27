@@ -9,10 +9,18 @@ class StreamEvent(BaseEvent):
     pass
 
 
+def _get_remote(endpoint, name):
+    for remote in endpoint._connections:
+        if remote.name == name:
+            return remote
+    else:
+        raise Exception("Not found")
+
+
 @pytest.mark.asyncio
-async def test_asyncio_stream_api_updates_subscriptions(pair_of_endpoints):
-    subscriber, other = pair_of_endpoints
-    remote = other._full_connections[subscriber.name]
+async def test_asyncio_stream_api_updates_subscriptions(endpoint_pair):
+    subscriber, other = endpoint_pair
+    remote = _get_remote(other, subscriber.name)
 
     assert StreamEvent not in remote.get_subscribed_events()
     assert StreamEvent not in subscriber.get_subscribed_events()
@@ -49,9 +57,9 @@ async def test_asyncio_stream_api_updates_subscriptions(pair_of_endpoints):
 
 
 @pytest.mark.asyncio
-async def test_asyncio_wait_for_updates_subscriptions(pair_of_endpoints):
-    subscriber, other = pair_of_endpoints
-    remote = other._full_connections[subscriber.name]
+async def test_asyncio_wait_for_updates_subscriptions(endpoint_pair):
+    subscriber, other = endpoint_pair
+    remote = _get_remote(other, subscriber.name)
 
     assert StreamEvent not in remote.get_subscribed_events()
     assert StreamEvent not in subscriber.get_subscribed_events()
@@ -84,11 +92,9 @@ class InheretedStreamEvent(StreamEvent):
 
 
 @pytest.mark.asyncio
-async def test_asyncio_subscription_api_does_not_match_inherited_classes(
-    pair_of_endpoints
-):
-    subscriber, other = pair_of_endpoints
-    remote = other._full_connections[subscriber.name]
+async def test_asyncio_subscription_api_does_not_match_inherited_classes(endpoint_pair):
+    subscriber, other = endpoint_pair
+    remote = _get_remote(other, subscriber.name)
 
     assert StreamEvent not in remote.get_subscribed_events()
     assert StreamEvent not in subscriber.get_subscribed_events()
@@ -119,9 +125,9 @@ class SubscribeEvent(BaseEvent):
 
 
 @pytest.mark.asyncio
-async def test_asyncio_subscribe_updates_subscriptions(pair_of_endpoints):
-    subscriber, other = pair_of_endpoints
-    remote = other._full_connections[subscriber.name]
+async def test_asyncio_subscribe_updates_subscriptions(endpoint_pair):
+    subscriber, other = endpoint_pair
+    remote = _get_remote(other, subscriber.name)
 
     assert SubscribeEvent not in remote.get_subscribed_events()
     assert SubscribeEvent not in subscriber.get_subscribed_events()
@@ -216,7 +222,7 @@ async def test_asyncio_wait_until_all_connection_subscribed_to(
 
     asyncio.ensure_future(do_wait_subscriptions())
 
-    assert len(client._full_connections) + len(client._half_connections) == 3
+    assert len(client._connections) == 3
 
     server_c.subscribe(WaitSubscription, noop)
     assert got_subscription.is_set() is False

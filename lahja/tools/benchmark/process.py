@@ -15,6 +15,7 @@ from lahja.tools.benchmark.constants import (
     REPORTER_ENDPOINT,
     ROOT_ENDPOINT,
 )
+from lahja.tools.benchmark.logging import setup_stderr_lahja_logging
 from lahja.tools.benchmark.stats import GlobalStatistic, LocalStatistic
 from lahja.tools.benchmark.typing import (
     PerfMeasureEvent,
@@ -33,9 +34,12 @@ class DriverProcessConfig(NamedTuple):
     throttle: float
     payload_bytes: int
     backend: BaseBackend
+    debug_logging: bool
 
 
 class BaseDriverProcess(ABC):
+    logger = logging.getLogger("lahja.tools.benchmark.process.DriverProcess")
+
     def __init__(self, config: DriverProcessConfig) -> None:
         self._config = config
         self._process: Optional[multiprocessing.Process] = None
@@ -47,8 +51,9 @@ class BaseDriverProcess(ABC):
         self._process.start()
 
     def stop(self) -> None:
-        assert self._process is not None
-        if self._process.pid is not None:
+        if self._process is None:
+            raise Exception("no process")
+        elif self._process.pid is not None:
             os.kill(self._process.pid, signal.SIGINT)
         else:
             self._process.terminate()
@@ -61,9 +66,9 @@ class BaseDriverProcess(ABC):
 
     @classmethod
     def launch(cls, config: DriverProcessConfig) -> None:
-        # UNCOMMENT FOR DEBUGGING
-        # logger = multiprocessing.log_to_stderr()
-        # logger.setLevel(logging.INFO)
+        if config.debug_logging:
+            setup_stderr_lahja_logging()
+
         try:
             config.backend.run(cls.worker, config)
         except KeyboardInterrupt:
@@ -86,7 +91,10 @@ class BaseDriverProcess(ABC):
 class BroadcastDriver(BaseDriverProcess):
     @staticmethod
     async def do_driver(event_bus: BaseEndpoint, config: DriverProcessConfig) -> None:
-        await event_bus.wait_until_all_remotes_subscribed_to(PerfMeasureEvent)
+        for consumer in config.connected_endpoints:
+            await event_bus.wait_until_remote_subscribed_to(
+                consumer.name, PerfMeasureEvent
+            )
 
         counter = itertools.count()
         payload = b"\x00" * config.payload_bytes
@@ -98,9 +106,14 @@ class BroadcastDriver(BaseDriverProcess):
 
 
 class RequestDriver(BaseDriverProcess):
-    @staticmethod
-    async def do_driver(event_bus: BaseEndpoint, config: DriverProcessConfig) -> None:
-        await event_bus.wait_until_all_remotes_subscribed_to(PerfMeasureRequest)
+    @classmethod
+    async def do_driver(
+        cls, event_bus: BaseEndpoint, config: DriverProcessConfig
+    ) -> None:
+        for consumer in config.connected_endpoints:
+            await event_bus.wait_until_remote_subscribed_to(
+                consumer.name, PerfMeasureRequest
+            )
 
         counter = itertools.count()
         payload = b"\x00" * config.payload_bytes
@@ -111,36 +124,46 @@ class RequestDriver(BaseDriverProcess):
             )
 
 
+class ConsumerConfig(NamedTuple):
+    num_events: int
+    backend: BaseBackend
+    debug_logging: bool
+
+
 class BaseConsumerProcess(ABC):
-    def __init__(self, name: str, num_events: int, backend: BaseBackend) -> None:
+    logger = logging.getLogger("lahja.tools.benchmark.process.ConsumerProcess")
+
+    def __init__(self, name: str, config: ConsumerConfig) -> None:
         self._name = name
-        self._num_events = num_events
+        self._config = config
         self._process: Optional[multiprocessing.Process] = None
-        self._backend = backend
 
     def start(self) -> None:
         self._process = multiprocessing.Process(
-            target=self.launch, args=(self._name, self._num_events, self._backend)
+            target=self.launch, args=(self._name, self._config)
         )
         self._process.start()
 
     @classmethod
-    def launch(cls, name: str, num_events: int, backend: BaseBackend) -> None:
-        # UNCOMMENT FOR DEBUGGING
-        # logger = multiprocessing.log_to_stderr()
-        # logger.setLevel(logging.INFO)
-        backend.run(cls.worker, backend, name, num_events)
+    def launch(cls, name: str, config: ConsumerConfig) -> None:
+        if config.debug_logging:
+            setup_stderr_lahja_logging()
+
+        config.backend.run(cls.worker, name, config)
 
     @classmethod
-    async def worker(cls, backend: BaseBackend, name: str, num_events: int) -> None:
-        config = ConnectionConfig.from_name(name)
-        async with backend.Endpoint.serve(config) as event_bus:
+    async def worker(cls, name: str, config: ConsumerConfig) -> None:
+        conn_config = ConnectionConfig.from_name(name)
+        async with config.backend.Endpoint.serve(conn_config) as event_bus:
             await event_bus.connect_to_endpoints(
                 ConnectionConfig.from_name(REPORTER_ENDPOINT)
             )
-            await event_bus.wait_until_all_remotes_subscribed_to(TotalRecordedEvent)
+            await event_bus.wait_until_connected_to(DRIVER_ENDPOINT)
+            stats = await cls.do_consumer(event_bus, config)
 
-            stats = await cls.do_consumer(event_bus, num_events)
+            await event_bus.wait_until_remote_subscribed_to(
+                REPORTER_ENDPOINT, TotalRecordedEvent
+            )
 
             await event_bus.broadcast(
                 TotalRecordedEvent(stats.crunch(event_bus.name)),
@@ -149,15 +172,19 @@ class BaseConsumerProcess(ABC):
 
     @staticmethod
     @abstractmethod
-    async def do_consumer(event_bus: BaseEndpoint, num_events: int) -> LocalStatistic:
+    async def do_consumer(
+        event_bus: BaseEndpoint, config: ConsumerConfig
+    ) -> LocalStatistic:
         ...
 
 
 class BroadcastConsumer(BaseConsumerProcess):
     @staticmethod
-    async def do_consumer(event_bus: BaseEndpoint, num_events: int) -> LocalStatistic:
+    async def do_consumer(
+        event_bus: BaseEndpoint, config: ConsumerConfig
+    ) -> LocalStatistic:
         stats = LocalStatistic()
-        events = event_bus.stream(PerfMeasureEvent, num_events=num_events)
+        events = event_bus.stream(PerfMeasureEvent, num_events=config.num_events)
         async for event in events:
             stats.add(RawMeasureEntry(sent_at=event.sent_at, received_at=time.time()))
         return stats
@@ -165,14 +192,11 @@ class BroadcastConsumer(BaseConsumerProcess):
 
 class RequestConsumer(BaseConsumerProcess):
     @staticmethod
-    async def do_consumer(event_bus: BaseEndpoint, num_events: int) -> LocalStatistic:
-        driver_config = ConnectionConfig.from_name(DRIVER_ENDPOINT)
-        from lahja.asyncio.endpoint import wait_for_path
-
-        await wait_for_path(driver_config.path)
-        await event_bus.connect_to_endpoint(driver_config)
+    async def do_consumer(
+        event_bus: BaseEndpoint, config: ConsumerConfig
+    ) -> LocalStatistic:
         stats = LocalStatistic()
-        events = event_bus.stream(PerfMeasureRequest, num_events=num_events)
+        events = event_bus.stream(PerfMeasureRequest, num_events=config.num_events)
         async for event in events:
             await event_bus.broadcast(PerfMeasureResponse(), event.broadcast_config())
             stats.add(RawMeasureEntry(sent_at=event.sent_at, received_at=time.time()))
@@ -185,9 +209,12 @@ class ReportingProcessConfig(NamedTuple):
     throttle: float
     payload_bytes: int
     backend: BaseBackend
+    debug_logging: bool
 
 
 class ReportingProcess:
+    logger = logging.getLogger("lahja.tools.benchmark.process.ReportingProcess")
+
     def __init__(self, config: ReportingProcessConfig) -> None:
         self._name = REPORTER_ENDPOINT
         self._config = config
@@ -199,8 +226,11 @@ class ReportingProcess:
         )
         self._process.start()
 
-    @staticmethod
-    def launch(config: ReportingProcessConfig) -> None:
+    @classmethod
+    def launch(cls, config: ReportingProcessConfig) -> None:
+        if config.debug_logging:
+            setup_stderr_lahja_logging()
+
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logger = logging.getLogger("reporting")
 

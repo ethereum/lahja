@@ -10,8 +10,8 @@ class Internal(BaseEvent):
 
 
 @pytest.mark.asyncio
-async def test_internal_propagation(pair_of_endpoints):
-    endpoint_a, endpoint_b = pair_of_endpoints
+async def test_internal_propagation(endpoint_pair):
+    endpoint_a, endpoint_b = endpoint_pair
 
     async def do_wait_for(endpoint, event):
         await endpoint.wait_for(Internal)

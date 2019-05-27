@@ -1,8 +1,6 @@
 import asyncio
 import logging
 import multiprocessing
-import time
-import sys
 
 from lahja import BaseEvent, AsyncioEndpoint, ConnectionConfig
 
@@ -38,24 +36,19 @@ def run_proc1():
 
 
 async def proc1_worker():
-    async with AsyncioEndpoint.serve(ConnectionConfig.from_name("e1")) as endpoint:
-        await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e2"))
-        endpoint.subscribe(
+    async with AsyncioEndpoint.serve(ConnectionConfig.from_name("e1")) as server:
+        server.subscribe(
             SecondThingHappened,
             lambda event: logging.info(
                 "Received via SUBSCRIBE API in proc1: %s", event.payload
             ),
         )
-        endpoint.subscribe(
-            FirstThingHappened,
-            lambda event: logging.info("Receiving own event: %s", event.payload),
-        )
+        await server.wait_until_any_remote_subscribed_to(FirstThingHappened)
 
         while True:
             logging.info("Hello from proc1")
-            if is_nth_second(5):
-                await endpoint.broadcast(FirstThingHappened("Hit from proc1"))
-            await asyncio.sleep(1)
+            await server.broadcast(FirstThingHappened("Hit from proc1"))
+            await asyncio.sleep(2)
 
 
 # Base functions for second process
@@ -66,30 +59,27 @@ def run_proc2():
 
 
 async def proc2_worker():
-    async with AsyncioEndpoint.serve(ConnectionConfig.from_name("e2")) as endpoint:
-        await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e1"))
-        asyncio.ensure_future(display_proc1_events(endpoint))
-        endpoint.subscribe(
+    config = ConnectionConfig.from_name("e1")
+    async with AsyncioEndpoint("e2").run() as client:
+        await client.connect_to_endpoints(config)
+        asyncio.ensure_future(display_proc1_events(client))
+        client.subscribe(
             FirstThingHappened,
             lambda event: logging.info(
                 "Received via SUBSCRIBE API in proc2: %s", event.payload
             ),
         )
+        await client.wait_until_any_remote_subscribed_to(SecondThingHappened)
+
         while True:
             logging.info("Hello from proc2")
-            if is_nth_second(2):
-                await endpoint.broadcast(SecondThingHappened("Hit from proc2 "))
-            await asyncio.sleep(1)
+            await client.broadcast(SecondThingHappened("Hit from proc2 "))
+            await asyncio.sleep(2)
 
 
 async def display_proc1_events(endpoint):
     async for event in endpoint.stream(FirstThingHappened):
         logging.info("Received via STREAM API in proc2: %s", event.payload)
-
-
-# Helper function to send events every n seconds
-def is_nth_second(interval):
-    return int(time.time()) % interval is 0
 
 
 if __name__ == "__main__":

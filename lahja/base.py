@@ -26,9 +26,11 @@ from .common import (
     Broadcast,
     BroadcastConfig,
     ConnectionConfig,
+    Hello,
     Message,
     Msg,
     Subscription,
+    SubscriptionsAck,
     SubscriptionsUpdated,
 )
 from .exceptions import RemoteDisconnected
@@ -59,32 +61,12 @@ class RemoteEndpointAPI(ABC):
     """
     Represents a connection to another endpoint.  Connections *can* be
     bi-directional with messages flowing in either direction.
-
-    A 'message' can be any of:
-
-    - ``SubscriptionsUpdated``
-            broadcasting the subscriptions that the endpoint on the other side
-            of this connection is interested in.
-    - ``SubscriptionsAck``
-            acknowledgedment of a ``SubscriptionsUpdated``
-    - ``Broadcast``
-            an event meant to be processed by the endpoint.
     """
 
-    name: Optional[str]
-    conn: ConnectionAPI
-
-    _running: EventAPI
-    _stopped: EventAPI
-
-    _notify_lock: LockAPI
-
-    _received_response: ConditionAPI
-    _received_subscription: ConditionAPI
-
-    _subscribed_events: Set[Type[BaseEvent]]
-
-    _subscriptions_initialized: EventAPI
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        ...
 
     #
     # Object run lifecycle
@@ -94,11 +76,19 @@ class RemoteEndpointAPI(ABC):
         ...
 
     @abstractmethod
+    async def wait_ready(self) -> None:
+        ...
+
+    @abstractmethod
     async def wait_stopped(self) -> None:
         ...
 
     @abstractmethod
     def is_running(self) -> bool:
+        ...
+
+    @abstractmethod
+    def is_ready(self) -> bool:
         ...
 
     @abstractmethod
@@ -146,7 +136,7 @@ class RemoteEndpointAPI(ABC):
         ...
 
     @abstractmethod
-    async def wait_until_subscription_received(self) -> None:
+    async def wait_until_subscription_initialized(self) -> None:
         ...
 
 
@@ -159,28 +149,56 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
     bi-directional with messages flowing in either direction.
     """
 
-    logger = logging.getLogger("lahja.endpoint.asyncio.RemoteEndpoint")
+    logger = logging.getLogger("lahja.base.RemoteEndpoint")
+
+    conn: ConnectionAPI
+
+    _local_name: str
+    _running: EventAPI
+    _ready: EventAPI
+    _stopped: EventAPI
+
+    _notify_lock: LockAPI
+
+    _received_response: ConditionAPI
+    _received_subscription: ConditionAPI
+
+    _subscribed_events: Set[Type[BaseEvent]]
+
+    _subscriptions_initialized: EventAPI
 
     def __init__(
         self,
-        name: Optional[str],
+        local_name: str,
         conn: ConnectionAPI,
         new_msg_func: Callable[[Broadcast], Awaitable[Any]],
     ) -> None:
-        self.name = name
+        self._local_name = local_name
         self.conn = conn
         self.new_msg_func = new_msg_func
 
         self._subscribed_events = set()
 
     def __str__(self) -> str:
-        return f"RemoteEndpoint[{self.name if self.name is not None else id(self)}]"
+        return f"RemoteEndpoint[{self._name if self._name is not None else id(self)}]"
 
     def __repr__(self) -> str:
         return f"<{self}>"
 
+    _name: Optional[str] = None
+
+    @property
+    def name(self) -> str:
+        if self._name is None:
+            raise AttributeError("Endpoint name has not yet been established")
+        else:
+            return self._name
+
     async def wait_started(self) -> None:
         await self._running.wait()
+
+    async def wait_ready(self) -> None:
+        await self._ready.wait()
 
     async def wait_stopped(self) -> None:
         await self._stopped.wait()
@@ -188,8 +206,61 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
     def is_running(self) -> bool:
         return not self.is_stopped and self.running.is_set()
 
+    def is_ready(self) -> bool:
+        return self.is_running and self._ready.is_set()
+
     def is_stopped(self) -> bool:
         return self._stopped.is_set()
+
+    async def _run(self) -> None:
+        self._running.set()
+
+        # Send the hello message
+        await self.send_message(Hello(self._local_name))
+
+        # Wait for the other endpoint to identify itself.
+        hello = await self.conn.read_message()
+        if isinstance(hello, Hello):
+            self._name = hello.name
+            self.logger.debug(
+                "RemoteEndpoint connection established: %s <-> %s",
+                self._local_name,
+                self.name,
+            )
+            self._ready.set()
+        else:
+            self.logger.debug(
+                "Invalid message: First message must be `Hello`, Got: %s", hello
+            )
+            self._stopped.set()
+            return
+
+        while self.is_running:
+            try:
+                message = await self.conn.read_message()
+            except RemoteDisconnected:
+                async with self._received_response:
+                    self._received_response.notify_all()
+                return
+
+            if isinstance(message, Broadcast):
+                await self.new_msg_func(message)
+            elif isinstance(message, SubscriptionsUpdated):
+                self._subscriptions_initialized.set()
+                async with self._received_subscription:
+                    self._subscribed_events = message.subscriptions
+                    self._received_subscription.notify_all()
+                # The ack is sent after releasing the lock since we've already
+                # exited the code which actually updates the subscriptions and
+                # we are merely responding to the sender to acknowledge
+                # receipt.
+                if message.response_expected:
+                    await self.send_message(SubscriptionsAck())
+            elif isinstance(message, SubscriptionsAck):
+                async with self._received_response:
+                    self._received_response.notify_all()
+            else:
+                self.logger.error(f"received unexpected message: {message}")
 
     def get_subscribed_events(self) -> Set[Type[BaseEvent]]:
         return self._subscribed_events
@@ -234,9 +305,8 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
     async def send_message(self, message: Msg) -> None:
         await self.conn.send_message(message)
 
-    async def wait_until_subscription_received(self) -> None:
-        async with self._received_subscription:
-            await self._received_subscription.wait()
+    async def wait_until_subscription_initialized(self) -> None:
+        await self._subscriptions_initialized.wait()
 
 
 class EndpointAPI(ABC):
@@ -248,6 +318,11 @@ class EndpointAPI(ABC):
     __slots__ = ("name",)
 
     name: str
+
+    _remote_connections_changed: ConditionAPI
+    _remote_subscriptions_changed: ConditionAPI
+
+    _connections: Set[RemoteEndpointAPI]
 
     @property
     @abstractmethod
@@ -319,11 +394,11 @@ class EndpointAPI(ABC):
     @abstractmethod
     def get_connected_endpoints_and_subscriptions(
         self
-    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
+    ) -> Tuple[Tuple[str, Set[Type[BaseEvent]]], ...]:
         """
         Return 2-tuples for all all connected endpoints containing the name of
-        the endpoint (which might be ``None``) coupled with the set of messages
-        the endpoint subscribes to
+        the endpoint coupled with the set of messages the endpoint subscribes
+        to
         """
         ...
 
@@ -510,14 +585,36 @@ class BaseEndpoint(EndpointAPI):
         for config in endpoints:
             await self.connect_to_endpoint(config)
 
+    def is_connected_to(self, endpoint_name: str) -> bool:
+        return any(endpoint_name == remote.name for remote in self._connections)
+
     async def wait_until_connected_to(self, endpoint_name: str) -> None:
         """
         Return once a connection exists to an endpoint with the given name.
         """
-        while True:
-            if self.is_connected_to(endpoint_name):
-                return
-            await self.wait_until_connections_change()
+        async with self._remote_connections_changed:
+            while True:
+                if self.is_connected_to(endpoint_name):
+                    return
+                await self._remote_connections_changed.wait()
+
+    def get_connected_endpoints_and_subscriptions(
+        self
+    ) -> Tuple[Tuple[str, Set[Type[BaseEvent]]], ...]:
+        """
+        Return all connected endpoints and their event type subscriptions to this endpoint.
+        """
+        return tuple(
+            (remote.name, remote.get_subscribed_events())
+            for remote in self._connections
+        )
+
+    async def wait_until_connections_change(self) -> None:
+        """
+        Block until the set of connected remote endpoints changes.
+        """
+        async with self._remote_connections_changed:
+            await self._remote_connections_changed.wait()
 
     #
     # Event API
@@ -534,6 +631,10 @@ class BaseEndpoint(EndpointAPI):
     #
     # Subscription API
     #
+    async def wait_until_remote_subscriptions_change(self) -> None:
+        async with self._remote_subscriptions_changed:
+            await self._remote_subscriptions_changed.wait()
+
     def is_remote_subscribed_to(
         self, remote_endpoint: str, event_type: Type[BaseEvent]
     ) -> bool:
@@ -581,21 +682,22 @@ class BaseEndpoint(EndpointAPI):
         Block until the specified remote endpoint has subscribed to the specified event type
         from this endpoint.
         """
-        while True:
-            if self.is_remote_subscribed_to(remote_endpoint, event):
-                return
-            await self.wait_until_remote_subscriptions_change()
+        async with self._remote_subscriptions_changed:
+            while True:
+                if self.is_remote_subscribed_to(remote_endpoint, event):
+                    return
+                await self._remote_subscriptions_changed.wait()
 
     async def wait_until_any_remote_subscribed_to(self, event: Type[BaseEvent]) -> None:
         """
         Block until any other remote endpoint has subscribed to the specified event type
         from this endpoint.
         """
-
-        while True:
-            if self.is_any_remote_subscribed_to(event):
-                return
-            await self.wait_until_remote_subscriptions_change()
+        async with self._remote_subscriptions_changed:
+            while True:
+                if self.is_any_remote_subscribed_to(event):
+                    return
+                await self._remote_subscriptions_changed.wait()
 
     async def wait_until_all_remotes_subscribed_to(
         self, event: Type[BaseEvent]
@@ -604,7 +706,8 @@ class BaseEndpoint(EndpointAPI):
         Block until all currently connected remote endpoints are subscribed to the specified
         event type from this endpoint.
         """
-        while True:
-            if self.are_all_remotes_subscribed_to(event):
-                return
-            await self.wait_until_remote_subscriptions_change()
+        async with self._remote_subscriptions_changed:
+            while True:
+                if self.are_all_remotes_subscribed_to(event):
+                    return
+                await self._remote_subscriptions_changed.wait()

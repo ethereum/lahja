@@ -1,12 +1,10 @@
 import asyncio
 import multiprocessing
-import time
 
 from lahja import (
     AsyncioEndpoint,
     BaseEvent,
     BaseRequestResponseEvent,
-    BroadcastConfig,
     ConnectionConfig,
 )
 
@@ -32,10 +30,9 @@ def spawn_proc1():
 
 async def run_proc1():
     config = ConnectionConfig.from_name("e1")
-    async with AsyncioEndpoint.serve(config) as endpoint:
-        await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e2"))
-        async for event in endpoint.stream(GetSomethingRequest, num_events=3):
-            await endpoint.broadcast(
+    async with AsyncioEndpoint.serve(config) as server:
+        async for event in server.stream(GetSomethingRequest, num_events=3):
+            await server.broadcast(
                 DeliverSomethingResponse("Yay"), event.broadcast_config()
             )
 
@@ -47,14 +44,14 @@ def run_proc2():
 
 
 async def proc2_worker():
-    config = ConnectionConfig.from_name("e2")
-    async with AsyncioEndpoint.serve(config) as endpoint:
-        await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e1"))
-        await endpoint.wait_until_any_remote_subscribed_to(GetSomethingRequest)
+    config = ConnectionConfig.from_name("e1")
+    async with AsyncioEndpoint("e2").run() as client:
+        await client.connect_to_endpoints(config)
+        await client.wait_until_any_remote_subscribed_to(GetSomethingRequest)
 
         for i in range(3):
             print("Requesting")
-            result = await endpoint.request(GetSomethingRequest())
+            result = await client.request(GetSomethingRequest())
             print(f"Got answer: {result.payload}")
 
 
