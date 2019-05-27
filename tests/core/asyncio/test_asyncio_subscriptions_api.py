@@ -12,7 +12,7 @@ class StreamEvent(BaseEvent):
 @pytest.mark.asyncio
 async def test_asyncio_stream_api_updates_subscriptions(pair_of_endpoints):
     subscriber, other = pair_of_endpoints
-    remote = other._outbound_connections[subscriber.name]
+    remote = other._full_connections[subscriber.name]
 
     assert StreamEvent not in remote.subscribed_messages
     assert StreamEvent not in subscriber.subscribed_events
@@ -51,7 +51,7 @@ async def test_asyncio_stream_api_updates_subscriptions(pair_of_endpoints):
 @pytest.mark.asyncio
 async def test_asyncio_wait_for_updates_subscriptions(pair_of_endpoints):
     subscriber, other = pair_of_endpoints
-    remote = other._outbound_connections[subscriber.name]
+    remote = other._full_connections[subscriber.name]
 
     assert StreamEvent not in remote.subscribed_messages
     assert StreamEvent not in subscriber.subscribed_events
@@ -88,7 +88,7 @@ async def test_asyncio_subscription_api_does_not_match_inherited_classes(
     pair_of_endpoints
 ):
     subscriber, other = pair_of_endpoints
-    remote = other._outbound_connections[subscriber.name]
+    remote = other._full_connections[subscriber.name]
 
     assert StreamEvent not in remote.subscribed_messages
     assert StreamEvent not in subscriber.subscribed_events
@@ -121,7 +121,7 @@ class SubscribeEvent(BaseEvent):
 @pytest.mark.asyncio
 async def test_asyncio_subscribe_updates_subscriptions(pair_of_endpoints):
     subscriber, other = pair_of_endpoints
-    remote = other._outbound_connections[subscriber.name]
+    remote = other._full_connections[subscriber.name]
 
     assert SubscribeEvent not in remote.subscribed_messages
     assert SubscribeEvent not in subscriber.subscribed_events
@@ -212,7 +212,7 @@ async def test_asyncio_wait_until_all_connection_subscribed_to(
 
     asyncio.ensure_future(do_wait_subscriptions())
 
-    assert len(client._outbound_connections) == 3
+    assert len(client._full_connections) + len(client._half_connections) == 3
 
     await server_c.subscribe(WaitSubscription, noop)
     assert got_subscription.is_set() is False
