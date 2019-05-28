@@ -81,32 +81,27 @@ The output will look like this:
 
 .. code:: sh
 
-    Hello from proc1
-    Hello from proc2
-    Received via SUBSCRIBE API in proc1:  Hit from proc2 (1533887068.9261594)
-    Hello from proc1
-    Hello from proc2
-    Hello from proc1
-    Hello from proc2
-    Received via SUBSCRIBE API in proc1:  Hit from proc2 (1533887070.9296985)
-    Receiving own event:  Hit from proc1 (1533887070.9288142)
-    Received via SUBSCRIBE API in proc2: Hit from proc1 (1533887070.9288142)
-    Received via STREAM API in proc2:  Hit from proc1 (1533887070.9288142)
-    Hello from proc1
-    Hello from proc2
-    Hello from proc1
-    Hello from proc2
-    Received via SUBSCRIBE API in proc1:  Hit from proc2 (1533887072.9331954)
-    Hello from proc1
-    Hello from proc2
-    Hello from proc1
-    Hello from proc2
-    Received via SUBSCRIBE API in proc1:  Hit from proc2 (1533887074.937018)
-    Hello from proc1
-    Hello from proc2
-    Received via SUBSCRIBE API in proc2: Hit from proc1 (1533887075.9378386)
-    Received via STREAM API in proc2:  Hit from proc1 (1533887075.9378386)
-    Receiving own event:  Hit from proc1 (1533887075.9378386)
+    INFO  05-29 11:31:45  Hello from proc2
+    INFO  05-29 11:31:45  Hello from proc1
+    INFO  05-29 11:31:45  Received via SUBSCRIBE API in proc2: Hit from proc1
+    INFO  05-29 11:31:45  Received via STREAM API in proc2: Hit from proc1
+    INFO  05-29 11:31:46  Hello from proc2
+    INFO  05-29 11:31:46  Received via SUBSCRIBE API in proc1: Hit from proc2
+    INFO  05-29 11:31:46  Hello from proc1
+    INFO  05-29 11:31:47  Hello from proc2
+    INFO  05-29 11:31:47  Hello from proc1
+    INFO  05-29 11:31:48  Hello from proc2
+    INFO  05-29 11:31:48  Received via SUBSCRIBE API in proc1: Hit from proc2
+    INFO  05-29 11:31:48  Hello from proc1
+    INFO  05-29 11:31:49  Hello from proc2
+    INFO  05-29 11:31:49  Hello from proc1
+    INFO  05-29 11:31:50  Hello from proc2
+    INFO  05-29 11:31:50  Received via SUBSCRIBE API in proc1: Hit from proc2
+    INFO  05-29 11:31:50  Hello from proc1
+    INFO  05-29 11:31:50  Received via SUBSCRIBE API in proc2: Hit from proc1
+    INFO  05-29 11:31:50  Received via STREAM API in proc2: Hit from proc1
+    INFO  05-29 11:31:51  Hello from proc2
+    INFO  05-29 11:31:51  Hello from proc1
 
 
 Example: Request API
