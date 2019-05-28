@@ -9,6 +9,7 @@ extras_require = {
     'test': [
         "cytoolz>=0.9.0,<1.0.0",
         "pytest==4.0.2",
+        "pytest-timeout==1.3.3",
         "pytest-xdist==1.25.0",
         "tox>=2.9.1,<3",
     ],
