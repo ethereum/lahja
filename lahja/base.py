@@ -122,15 +122,6 @@ class EndpointAPI(ABC):
         """
         ...
 
-    @abstractmethod
-    def get_connected_endpoints_and_subscriptions(
-        self
-    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
-        """
-        Return all connected endpoints and their event type subscriptions to this endpoint.
-        """
-        ...
-
     #
     # Event API
     #
@@ -211,6 +202,72 @@ class EndpointAPI(ABC):
         """
         ...
 
+    #
+    # Subscription API
+    #
+    @abstractmethod
+    def get_connected_endpoints_and_subscriptions(
+        self
+    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
+        """
+        Return all connected endpoints and their event type subscriptions to this endpoint.
+        """
+        ...
+
+    @abstractmethod
+    def is_remote_subscribed_to(
+        self, remote_endpoint: str, event_type: Type[BaseEvent]
+    ) -> bool:
+        """
+        Return ``True`` if the specified remote endpoint is subscribed to the specified event type
+        from this endpoint. Otherwise return ``False``.
+        """
+        ...
+
+    @abstractmethod
+    def is_any_remote_subscribed_to(self, event_type: Type[BaseEvent]) -> bool:
+        """
+        Return ``True`` if at least one of the connected remote endpoints is subscribed to the
+        specified event type from this endpoint. Otherwise return ``False``.
+        """
+        ...
+
+    @abstractmethod
+    def are_all_remotes_subscribed_to(self, event_type: Type[BaseEvent]) -> bool:
+        """
+        Return ``True`` if every connected remote endpoint is subscribed to the specified event
+        type from this endpoint. Otherwise return ``False``.
+        """
+        ...
+
+    @abstractmethod
+    async def wait_until_remote_subscribed_to(
+        self, remote_endpoint: str, event: Type[BaseEvent]
+    ) -> None:
+        """
+        Block until the specified remote endpoint has subscribed to the specified event type
+        from this endpoint.
+        """
+        ...
+
+    @abstractmethod
+    async def wait_until_any_remote_subscribed_to(self, event: Type[BaseEvent]) -> None:
+        """
+        Block until any other remote endpoint has subscribed to the specified event type
+        from this endpoint.
+        """
+        ...
+
+    @abstractmethod
+    async def wait_until_all_remotes_subscribed_to(
+        self, event: Type[BaseEvent]
+    ) -> None:
+        """
+        Block until all currently connected remote endpoints are subscribed to the specified
+        event type from this endpoint.
+        """
+        ...
+
 
 class BaseEndpoint(EndpointAPI):
     """
@@ -225,6 +282,9 @@ class BaseEndpoint(EndpointAPI):
     def __reduce__(self) -> None:  # type: ignore
         raise NotImplementedError("Endpoints cannot be pickled")
 
+    #
+    # Connection API
+    #
     async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
         """
         Naive asynchronous implementation.  Subclasses should consider
@@ -233,6 +293,9 @@ class BaseEndpoint(EndpointAPI):
         for config in endpoints:
             await self.connect_to_endpoint(config)
 
+    #
+    # Event API
+    #
     async def wait_for(self, event_type: Type[TWaitForEvent]) -> TWaitForEvent:
         """
         Wait for a single instance of an event that matches the specified event type.
@@ -242,6 +305,9 @@ class BaseEndpoint(EndpointAPI):
         await agen.aclose()
         return event
 
+    #
+    # Subscription API
+    #
     def is_remote_subscribed_to(
         self, remote_endpoint: str, event_type: Type[BaseEvent]
     ) -> bool:
