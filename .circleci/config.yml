@@ -75,6 +75,18 @@ jobs:
       - image: circleci/python:3.7
         environment:
           TOXENV: py37-core-asyncio
+  py36-examples:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: py36-examples
+  py37-examples:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7
+        environment:
+          TOXENV: py37-examples
   py36-snappy-core-asyncio:
     <<: *common
     docker:
@@ -97,5 +109,7 @@ workflows:
       - lint
       - py36-core-asyncio
       - py37-core-asyncio
+      - py36-examples
+      - py37-examples
       - py36-snappy-core-asyncio
       - py37-snappy-core-asyncio
