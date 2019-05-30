@@ -446,7 +446,7 @@ class AsyncioEndpoint(BaseEndpoint):
         Tell all inbound connections of our new subscriptions
         """
         # make a copy so that the set doesn't change while we iterate over it
-        subscribed_events = self.subscribed_events
+        subscribed_events = frozenset(self.subscribed_events)
         for remote in self._half_connections.copy():
             await remote.notify_subscriptions_updated(subscribed_events)
         for remote in tuple(self._full_connections.values()):
