@@ -94,10 +94,6 @@ class BaseRequestResponseEvent(ABC, BaseEvent, Generic[TResponse]):
         raise NotImplementedError("Must be implemented by subsclasses")
 
 
-class RemoteSubscriptionChanged(BaseEvent):
-    pass
-
-
 class ConnectionConfig(NamedTuple):
     """
     Configuration class needed to establish :class:`~lahja.endpoint.Endpoint` connections.

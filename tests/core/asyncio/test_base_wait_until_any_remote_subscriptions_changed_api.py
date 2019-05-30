@@ -1,0 +1,27 @@
+import asyncio
+
+import pytest
+
+from conftest import generate_unique_name
+from lahja import AsyncioEndpoint, BaseEvent, ConnectionConfig
+
+
+class SubscriptionEvent(BaseEvent):
+    pass
+
+
+@pytest.mark.asyncio
+async def test_base_wait_until_any_remote_subscriptions_changed():
+    config = ConnectionConfig.from_name(generate_unique_name())
+    async with AsyncioEndpoint.serve(config) as server:
+        async with AsyncioEndpoint("client").run() as client:
+            await client.connect_to_endpoint(config)
+            assert client.is_connected_to(config.name)
+
+            asyncio.ensure_future(server.subscribe(SubscriptionEvent, lambda e: None))
+
+            assert not client.is_any_remote_subscribed_to(SubscriptionEvent)
+            await asyncio.wait_for(
+                client.wait_until_remote_subscriptions_change(), timeout=0.1
+            )
+            assert client.is_any_remote_subscribed_to(SubscriptionEvent)

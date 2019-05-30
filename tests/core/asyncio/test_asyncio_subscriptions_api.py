@@ -194,7 +194,7 @@ async def test_asyncio_wait_until_any_remote_subscribed_to(
     asyncio.ensure_future(server_a.subscribe(WaitSubscription, noop))
 
     await asyncio.wait_for(
-        client.wait_until_any_remote_subscribed_to(WaitSubscription), timeout=0.1
+        client.wait_until_any_remote_subscribed_to(WaitSubscription), timeout=1
     )
 
 
