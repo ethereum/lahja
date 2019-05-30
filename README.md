@@ -24,10 +24,8 @@ Key facts:
 
 ## TODOs
 
-- Filter support (e.g. only subscribe to `EventX` from origin `y`)
 - Push boundaries (don't push this into process x)
 - Testing
-- Performance analysis
 
 ## Developer Setup
 
