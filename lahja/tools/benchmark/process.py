@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 import itertools
 import logging
 import multiprocessing
+import os
+import signal
 import time
 from typing import Any, AsyncGenerator, List, NamedTuple, Optional, Tuple  # noqa: F401
 
@@ -46,15 +48,26 @@ class BaseDriverProcess(ABC):
 
     def stop(self) -> None:
         assert self._process is not None
-        self._process.terminate()
-        self._process.join(1)
+        if self._process.pid is not None:
+            os.kill(self._process.pid, signal.SIGINT)
+        else:
+            self._process.terminate()
+
+        try:
+            self._process.join(1)
+        except TimeoutError:
+            self._process.terminate()
+            self._process.join(1)
 
     @classmethod
     def launch(cls, config: DriverProcessConfig) -> None:
         # UNCOMMENT FOR DEBUGGING
         # logger = multiprocessing.log_to_stderr()
         # logger.setLevel(logging.INFO)
-        config.backend.run(cls.worker, config)
+        try:
+            config.backend.run(cls.worker, config)
+        except KeyboardInterrupt:
+            return
 
     @classmethod
     async def worker(cls, config: DriverProcessConfig) -> None:
@@ -125,10 +138,10 @@ class BaseConsumerProcess(ABC):
             await event_bus.connect_to_endpoints(
                 ConnectionConfig.from_name(REPORTER_ENDPOINT)
             )
-            await event_bus.wait_until_all_remotes_subscribed_to(TotalRecordedEvent)
 
             stats = await cls.do_consumer(event_bus, num_events)
 
+            await event_bus.wait_until_all_remotes_subscribed_to(TotalRecordedEvent)
             await event_bus.broadcast(
                 TotalRecordedEvent(stats.crunch(event_bus.name)),
                 BroadcastConfig(filter_endpoint=REPORTER_ENDPOINT),

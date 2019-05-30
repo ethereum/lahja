@@ -163,6 +163,12 @@ class RemoteEndpoint:
         self._running = asyncio.Event()
         self._stopped = asyncio.Event()
 
+    def __str__(self) -> str:
+        return f"RemoteEndpoint[{self.name if self.name is not None else id(self)}]"
+
+    def __repr__(self) -> str:
+        return f"<{self}>"
+
     async def wait_started(self) -> None:
         await self._running.wait()
 
@@ -202,9 +208,13 @@ class RemoteEndpoint:
                 async with self._received_response:
                     self._received_response.notify_all()
             elif isinstance(message, SubscriptionsUpdated):
-                self.subscribed_messages = message.subscriptions
                 async with self._received_subscription:
+                    self.subscribed_messages = message.subscriptions
                     self._received_subscription.notify_all()
+                # The ack is sent after releasing the lock since we've already
+                # exited the code which actually updates the subscriptions and
+                # we are merely responding to the sender to acknowledge
+                # receipt.
                 if message.response_expected:
                     await self.send_message(SubscriptionsAck())
             else:
@@ -214,14 +224,19 @@ class RemoteEndpoint:
         self, subscriptions: Set[Type[BaseEvent]], block: bool = True
     ) -> None:
         """
-        Alert the ``Endpoint`` which has connected to us that our subscription set has
-        changed. If ``block`` is ``True`` then this function will block until the remote
-        endpoint has acknowledged the new subscription set. If ``block`` is ``False`` then this
-        function will return immediately after the send finishes.
+        Alert the endpoint on the other side of this connection that the local
+        subscriptions have changed. If ``block`` is ``True`` then this function
+        will block until the remote endpoint has acknowledged the new
+        subscription set. If ``block`` is ``False`` then this function will
+        return immediately after the send finishes.
         """
+        # The extra lock ensures only one coroutine can notify this endpoint at any one time
+        # and that no replies are accidentally received by the wrong
+        # coroutines. Without this, in the case where `block=True`, this inner
+        # block would release the lock on the call to `wait()` which would
+        # allow the ack from a different update to incorrectly result in this
+        # returning before the ack had been received.
         async with self._notify_lock:
-            # The lock ensures only one coroutine can notify this endpoint at any one time
-            # and that no replies are accidentally received by the wrong coroutines.
             async with self._received_response:
                 try:
                     await self.conn.send_message(
@@ -334,6 +349,12 @@ class AsyncioEndpoint(BaseEndpoint):
 
         self._running = False
         self._serving = False
+
+    def __str__(self) -> str:
+        return f"Endpoint[{self.name}]"
+
+    def __repr__(self) -> str:
+        return f"<{self.name}>"
 
     @property
     def is_running(self) -> bool:
