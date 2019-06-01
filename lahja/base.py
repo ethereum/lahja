@@ -210,7 +210,9 @@ class EndpointAPI(ABC):
         self
     ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
         """
-        Return all connected endpoints and their event type subscriptions to this endpoint.
+        Return 2-tuples for all all connected endpoints containing the name of
+        the endpoint (which might be ``None``) coupled with the set of messages
+        the endpoint subscribes to
         """
         ...
 
