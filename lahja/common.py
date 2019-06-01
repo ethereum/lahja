@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+import itertools
 from pathlib import Path
 from typing import (  # noqa: F401
     TYPE_CHECKING,
     Any,
     Callable,
     Generic,
+    Iterator,
     NamedTuple,
     Optional,
     Set,
@@ -14,6 +16,7 @@ from typing import (  # noqa: F401
 )
 
 from lahja.exceptions import BindError
+from lahja.typing import RequestID
 
 if TYPE_CHECKING:
     from lahja.base import EndpointAPI  # noqa: F401
@@ -31,7 +34,7 @@ class BroadcastConfig:
     def __init__(
         self,
         filter_endpoint: Optional[str] = None,
-        filter_event_id: Optional[str] = None,
+        filter_event_id: Optional[RequestID] = None,
         internal: bool = False,
     ) -> None:
 
@@ -58,11 +61,11 @@ class BroadcastConfig:
 class BaseEvent:
 
     _origin = ""
-    _id: Optional[str] = None
+    _id: Optional[RequestID] = None
 
     is_bound = False
 
-    def bind(self, endpoint: "EndpointAPI", id: Optional[str]) -> None:
+    def bind(self, endpoint: "EndpointAPI", id: Optional[RequestID]) -> None:
         if self.is_bound:
             raise BindError("Event is already bound")
         self._origin = endpoint.name
@@ -147,3 +150,12 @@ Message.register(SubscriptionsAck)
 
 # mypy doesn't appreciate the ABCMeta trick
 Msg = Union[Broadcast, SubscriptionsUpdated, SubscriptionsAck]
+
+
+class RequestIDGenerator(Iterator[RequestID]):
+    def __init__(self, base: bytes):
+        self._base = base
+        self._counter = itertools.count()
+
+    def __next__(self) -> RequestID:
+        return self._base + next(self._counter).to_bytes(4, "little")  # type: ignore
