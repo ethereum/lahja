@@ -1,4 +1,5 @@
 from .asyncio import AsyncioEndpoint  # noqa: F401
+from .base import EndpointAPI  # noqa: F401
 from .common import (  # noqa: F401
     BaseEvent,
     BaseRequestResponseEvent,
