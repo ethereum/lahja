@@ -49,7 +49,6 @@ from lahja.common import (
     ConnectionConfig,
     Message,
     Msg,
-    RemoteSubscriptionChanged,
     RequestIDGenerator,
     Subscription,
     SubscriptionsAck,
@@ -276,6 +275,8 @@ class AsyncioEndpoint(BaseEndpoint):
 
     _ipc_path: Path
 
+    _remote_connections_changed: asyncio.Condition
+
     _receiving_queue: "asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]"
     _receiving_loop_running: asyncio.Event
 
@@ -299,6 +300,9 @@ class AsyncioEndpoint(BaseEndpoint):
             raise Exception(
                 f"TODO: Invalid endpoint name: '{name}'. Must be ASCII encodable string"
             )
+
+        # Signal when a new remote connection is established
+        self._remote_connections_changed = asyncio.Condition()
 
         # storage containers for inbound and outbound connections to other
         # endpoints
@@ -543,22 +547,20 @@ class AsyncioEndpoint(BaseEndpoint):
 
         conn = await Connection.connect_to(config.path)
         remote = RemoteEndpoint(config.name, conn, self._receiving_queue.put)
-        self._full_connections[config.name] = remote
 
         task = asyncio.ensure_future(self._handle_server(remote))
-        subscriptions_task = asyncio.ensure_future(
-            self.watch_outbound_subscriptions(remote)
-        )
-        subscriptions_task.add_done_callback(self._endpoint_tasks.remove)
-        self._endpoint_tasks.add(subscriptions_task)
 
         task.add_done_callback(self._endpoint_tasks.remove)
-        task.add_done_callback(lambda _: subscriptions_task.cancel())
 
         self._endpoint_tasks.add(task)
 
-        # don't return control until the caller can safely call broadcast()
+        # block until we've received the other endpoint's subscriptions to
+        # ensure that it is safe to broadcast
         await remote.wait_until_subscription_received()
+
+        async with self._remote_connections_changed:
+            self._full_connections[config.name] = remote
+            self._remote_connections_changed.notify_all()
 
     async def _handle_server(self, remote: RemoteEndpoint) -> None:
         try:
@@ -566,14 +568,35 @@ class AsyncioEndpoint(BaseEndpoint):
                 await remote.wait_stopped()
         finally:
             if remote.name is not None:
-                self._full_connections.pop(remote.name)
+                async with self._remote_connections_changed:
+                    self._full_connections.pop(remote.name)
+                    self._remote_connections_changed.notify_all()
 
-    async def watch_outbound_subscriptions(self, outbound: RemoteEndpoint) -> None:
-        while outbound in self._full_connections.values():
-            await outbound.wait_until_subscription_received()
-            await self.broadcast(
-                RemoteSubscriptionChanged(), BroadcastConfig(internal=True)
-            )
+    async def wait_until_remote_subscriptions_change(self) -> None:
+        # We construct a set of awaitables that includes each individual
+        # remote's `wait_until_subscription_received` and a single call to the
+        # local `wait_until_connections_change`.  Once any one of these
+        # returns, we return, signaling that something has changed about our
+        # remote subscriptions.
+
+        wait_remote_subscriptions_change = tuple(
+            remote.wait_until_subscription_received()
+            for remote in self._full_connections.values()
+        )
+        wait_connection_changed = self.wait_until_connections_change()
+
+        _, pending = await asyncio.wait(
+            (wait_connection_changed,) + wait_remote_subscriptions_change,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # We cancel the other pending waits
+        for task in pending:
+            task.cancel()
+
+    async def wait_until_connections_change(self) -> None:
+        async with self._remote_connections_changed:
+            await self._remote_connections_changed.wait()
 
     def is_connected_to(self, endpoint_name: str) -> bool:
         return endpoint_name in self._full_connections
@@ -687,8 +710,12 @@ class AsyncioEndpoint(BaseEndpoint):
                 except RemoteDisconnected:
                     self.logger.debug(f"Remote endpoint {name} no longer exists")
                     disconnected_endpoints.append(name)
-        for name in disconnected_endpoints:
-            self._full_connections.pop(name, None)
+
+        if disconnected_endpoints:
+            async with self._remote_connections_changed:
+                for name in disconnected_endpoints:
+                    self._full_connections.pop(name, None)
+                self._remote_connections_changed.notify_all()
 
     def broadcast_nowait(
         self, item: BaseEvent, config: Optional[BroadcastConfig] = None

@@ -27,7 +27,6 @@ from .common import (
     ConnectionConfig,
     Message,
     Msg,
-    RemoteSubscriptionChanged,
     Subscription,
 )
 
@@ -122,6 +121,31 @@ class EndpointAPI(ABC):
         """
         ...
 
+    @abstractmethod
+    async def wait_until_connected_to(self, endpoint_name: str) -> None:
+        """
+        Return once a connection exists to an endpoint with the given name.
+        """
+        ...
+
+    @abstractmethod
+    def get_connected_endpoints_and_subscriptions(
+        self
+    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
+        """
+        Return 2-tuples for all all connected endpoints containing the name of
+        the endpoint (which might be ``None``) coupled with the set of messages
+        the endpoint subscribes to
+        """
+        ...
+
+    @abstractmethod
+    async def wait_until_connections_change(self) -> None:
+        """
+        Block until the set of connected remote endpoints changes.
+        """
+        ...
+
     #
     # Event API
     #
@@ -206,13 +230,10 @@ class EndpointAPI(ABC):
     # Subscription API
     #
     @abstractmethod
-    def get_connected_endpoints_and_subscriptions(
-        self
-    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
+    async def wait_until_remote_subscriptions_change(self) -> None:
         """
-        Return 2-tuples for all all connected endpoints containing the name of
-        the endpoint (which might be ``None``) coupled with the set of messages
-        the endpoint subscribes to
+        Block until any subscription change occurs on any remote endpoint or
+        the set of remote endpoints changes
         """
         ...
 
@@ -301,6 +322,15 @@ class BaseEndpoint(EndpointAPI):
         for config in endpoints:
             await self.connect_to_endpoint(config)
 
+    async def wait_until_connected_to(self, endpoint_name: str) -> None:
+        """
+        Return once a connection exists to an endpoint with the given name.
+        """
+        while True:
+            if self.is_connected_to(endpoint_name):
+                return
+            await self.wait_until_connections_change()
+
     #
     # Event API
     #
@@ -363,13 +393,10 @@ class BaseEndpoint(EndpointAPI):
         Block until the specified remote endpoint has subscribed to the specified event type
         from this endpoint.
         """
-
-        if self.is_remote_subscribed_to(remote_endpoint, event):
-            return
-
-        async for _ in self.stream(RemoteSubscriptionChanged):  # noqa: F841
+        while True:
             if self.is_remote_subscribed_to(remote_endpoint, event):
                 return
+            await self.wait_until_remote_subscriptions_change()
 
     async def wait_until_any_remote_subscribed_to(self, event: Type[BaseEvent]) -> None:
         """
@@ -377,12 +404,10 @@ class BaseEndpoint(EndpointAPI):
         from this endpoint.
         """
 
-        if self.is_any_remote_subscribed_to(event):
-            return
-
-        async for _ in self.stream(RemoteSubscriptionChanged):  # noqa: F841
+        while True:
             if self.is_any_remote_subscribed_to(event):
                 return
+            await self.wait_until_remote_subscriptions_change()
 
     async def wait_until_all_remotes_subscribed_to(
         self, event: Type[BaseEvent]
@@ -391,10 +416,7 @@ class BaseEndpoint(EndpointAPI):
         Block until all currently connected remote endpoints are subscribed to the specified
         event type from this endpoint.
         """
-
-        if self.are_all_remotes_subscribed_to(event):
-            return
-
-        async for _ in self.stream(RemoteSubscriptionChanged):  # noqa: F841
+        while True:
             if self.are_all_remotes_subscribed_to(event):
                 return
+            await self.wait_until_remote_subscriptions_change()
