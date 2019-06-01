@@ -11,11 +11,13 @@ from lahja.tools.benchmark.constants import (
     ROOT_ENDPOINT,
 )
 from lahja.tools.benchmark.process import (
-    ConsumerProcess,
-    DriverProcess,
+    BroadcastConsumer,
+    BroadcastDriver,
     DriverProcessConfig,
     ReportingProcess,
     ReportingProcessConfig,
+    RequestConsumer,
+    RequestDriver,
 )
 from lahja.tools.benchmark.typing import ShutdownEvent
 from lahja.tools.benchmark.utils.config import (
@@ -43,9 +45,24 @@ parser.add_argument(
     "--payload-bytes", type=int, default=1, help="The payload of each event in bytes"
 )
 parser.add_argument("--backend", action="append", help="The endpoint backend to use")
+parser.add_argument(
+    "--mode",
+    default="broadcast",
+    choices=("broadcast", "request"),
+    help="benchmarks request/response round trip",
+)
 
 
 async def run(args: argparse.Namespace, backend: BaseBackend):
+    if args.mode == "broadcast":
+        DriverClass = BroadcastDriver
+        ConsumerClass = BroadcastConsumer
+    elif args.mode == "request":
+        DriverClass = RequestDriver
+        ConsumerClass = RequestConsumer
+    else:
+        raise Exception(f"Unknown mode: '{args.mode}'")
+
     consumer_endpoint_configs = create_consumer_endpoint_configs(args.num_processes)
 
     (
@@ -74,7 +91,7 @@ async def run(args: argparse.Namespace, backend: BaseBackend):
         reporter.start()
 
         for n in range(args.num_processes):
-            consumer_process = ConsumerProcess(
+            consumer_process = ConsumerClass(
                 create_consumer_endpoint_name(n), args.num_events, backend=backend
             )
             consumer_process.start()
@@ -87,7 +104,7 @@ async def run(args: argparse.Namespace, backend: BaseBackend):
             payload_bytes=args.payload_bytes,
             backend=backend,
         )
-        driver = DriverProcess(driver_config)
+        driver = DriverClass(driver_config)
         driver.start()
 
         await root.wait_for(ShutdownEvent)
