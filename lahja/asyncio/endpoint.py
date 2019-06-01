@@ -291,6 +291,8 @@ class AsyncioEndpoint(BaseEndpoint):
     _loop: Optional[asyncio.AbstractEventLoop] = None
     _get_request_id: Iterator[RequestID]
 
+    _subscriptions_changed: asyncio.Event
+
     def __init__(self, name: str) -> None:
         self.name = name
 
@@ -386,6 +388,9 @@ class AsyncioEndpoint(BaseEndpoint):
         self._running = True
 
         self._endpoint_tasks.add(asyncio.ensure_future(self._connect_receiving_queue()))
+        self._endpoint_tasks.add(
+            asyncio.ensure_future(self._monitor_subscription_changes())
+        )
 
         await self._receiving_loop_running.wait()
         self.logger.debug("Endpoint[%s]: running", self.name)
@@ -441,16 +446,25 @@ class AsyncioEndpoint(BaseEndpoint):
             .union(self._queues.keys())
         )
 
-    async def _notify_subscriptions_changed(self) -> None:
-        """
-        Tell all inbound connections of our new subscriptions
-        """
-        # make a copy so that the set doesn't change while we iterate over it
-        subscribed_events = self.subscribed_events
-        for remote in self._half_connections.copy():
-            await remote.notify_subscriptions_updated(subscribed_events)
-        for remote in tuple(self._full_connections.values()):
-            await remote.notify_subscriptions_updated(subscribed_events)
+    async def _monitor_subscription_changes(self) -> None:
+        self._subscriptions_changed = asyncio.Event()
+
+        while self.is_running:
+            # We wait for the event to change and then immediately replace it
+            # with a new event.  This **must** occur before any additional
+            # `await` calls to ensure that any *new* changes to the
+            # subscriptions end up operating on the *new* event and will be
+            # picked up in the next iteration of the loop.
+            await self._subscriptions_changed.wait()
+            self._subscriptions_changed = asyncio.Event()
+
+            # make a copy so that the set doesn't change while we iterate
+            # over it
+            subscribed_events = self.subscribed_events
+            for remote in self._half_connections.copy():
+                await remote.notify_subscriptions_updated(subscribed_events)
+            for remote in tuple(self._full_connections.values()):
+                await remote.notify_subscriptions_updated(subscribed_events)
 
     def get_connected_endpoints_and_subscriptions(
         self
@@ -792,7 +806,7 @@ class AsyncioEndpoint(BaseEndpoint):
         # the user `await subscription.remove()`. This means this Endpoint will keep
         # getting events for a little while after it stops listening for them but
         # that's a performance problem, not a correctness problem.
-        asyncio.ensure_future(self._notify_subscriptions_changed())
+        self._subscriptions_changed.set()
 
     def _remove_sync_subscription(
         self, event_type: Type[BaseEvent], handler_fn: SubscriptionSyncHandler
@@ -804,7 +818,7 @@ class AsyncioEndpoint(BaseEndpoint):
         # the user `await subscription.remove()`. This means this Endpoint will keep
         # getting events for a little while after it stops listening for them but
         # that's a performance problem, not a correctness problem.
-        asyncio.ensure_future(self._notify_subscriptions_changed())
+        self._subscriptions_changed.set()
 
     async def subscribe(
         self,
@@ -829,7 +843,7 @@ class AsyncioEndpoint(BaseEndpoint):
                 self._remove_sync_subscription, event_type, casted_handler
             )
 
-        await self._notify_subscriptions_changed()
+        self._subscriptions_changed.set()
 
         return Subscription(unsubscribe_fn)
 
@@ -848,7 +862,7 @@ class AsyncioEndpoint(BaseEndpoint):
             self._queues[event_type] = []
 
         self._queues[event_type].append(casted_queue)
-        await self._notify_subscriptions_changed()
+        self._subscriptions_changed.set()
 
         iterations: Iterable[int]
 
@@ -870,4 +884,4 @@ class AsyncioEndpoint(BaseEndpoint):
             self._queues[event_type].remove(casted_queue)
             if not self._queues[event_type]:
                 del self._queues[event_type]
-            await self._notify_subscriptions_changed()
+            self._subscriptions_changed.set()

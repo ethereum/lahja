@@ -232,8 +232,12 @@ class EndpointAPI(ABC):
     @abstractmethod
     async def wait_until_remote_subscriptions_change(self) -> None:
         """
+<<<<<<< HEAD
         Block until any subscription change occurs on any remote endpoint or
         the set of remote endpoints changes
+=======
+        Block until any subscription change occurs on any remote endpoint.
+>>>>>>> Generic API for waiting for subscription and connection changes
         """
         ...
 
