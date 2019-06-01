@@ -449,7 +449,7 @@ class AsyncioEndpoint(BaseEndpoint):
     async def _monitor_subscription_changes(self) -> None:
         self._subscriptions_changed = asyncio.Event()
 
-        while True:
+        while self.is_running:
             # We wait for the event to change and then immediately replace it
             # with a new event.  This **must** occur before any additional
             # `await` calls to ensure that any *new* changes to the
