@@ -29,6 +29,7 @@ from .common import (
     Msg,
     Subscription,
 )
+from .typing import ConditionAPI, EventAPI, LockAPI
 
 TResponse = TypeVar("TResponse", bound=BaseEvent)
 TWaitForEvent = TypeVar("TWaitForEvent", bound=BaseEvent)
@@ -49,6 +50,89 @@ class ConnectionAPI(ABC):
     @abstractmethod
     async def read_message(self) -> Message:
         pass
+
+
+class RemoteEndpointAPI(ABC):
+    """
+    Represents a connection to another endpoint.  Connections *can* be
+    bi-directional with messages flowing in either direction.
+
+    A 'message' can be any of:
+
+    - ``SubscriptionsUpdated``
+            broadcasting the subscriptions that the endpoint on the other side
+            of this connection is interested in.
+    - ``SubscriptionsAck``
+            acknowledgedment of a ``SubscriptionsUpdated``
+    - ``Broadcast``
+            an event meant to be processed by the endpoint.
+    """
+
+    name: Optional[str]
+    conn: ConnectionAPI
+
+    subscribed_messages: Set[Type[BaseEvent]]
+
+    _running: EventAPI
+    _stopped: EventAPI
+
+    _notify_lock: LockAPI
+
+    _received_response: ConditionAPI
+    _received_subscription: ConditionAPI
+
+    subscribed_events: Set[Type[BaseEvent]]
+
+    _subscriptions_initialized: EventAPI
+
+    @abstractmethod
+    async def wait_started(self) -> None:
+        ...
+
+    @abstractmethod
+    async def wait_stopped(self) -> None:
+        ...
+
+    @abstractmethod
+    async def is_running(self) -> bool:
+        ...
+
+    @abstractmethod
+    async def is_stopped(self) -> bool:
+        ...
+
+    @abstractmethod
+    async def start(self) -> None:
+        ...
+
+    @abstractmethod
+    async def stop(self) -> None:
+        ...
+
+    @abstractmethod
+    async def _run(self) -> None:
+        ...
+
+    async def notify_subscriptions_updated(
+        self, subscriptions: Set[Type[BaseEvent]], block: bool = True
+    ) -> None:
+        """
+        Alert the endpoint on the other side of this connection that the local
+        subscriptions have changed. If ``block`` is ``True`` then this function
+        will block until the remote endpoint has acknowledged the new
+        subscription set. If ``block`` is ``False`` then this function will
+        return immediately after the send finishes.
+        """
+        ...
+
+    def can_send_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> bool:
+        ...
+
+    async def send_message(self, message: Msg) -> None:
+        ...
+
+    async def wait_until_subscription_received(self) -> None:
+        ...
 
 
 class EndpointAPI(ABC):
@@ -232,12 +316,8 @@ class EndpointAPI(ABC):
     @abstractmethod
     async def wait_until_remote_subscriptions_change(self) -> None:
         """
-<<<<<<< HEAD
         Block until any subscription change occurs on any remote endpoint or
         the set of remote endpoints changes
-=======
-        Block until any subscription change occurs on any remote endpoint.
->>>>>>> Generic API for waiting for subscription and connection changes
         """
         ...
 

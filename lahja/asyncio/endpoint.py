@@ -37,6 +37,7 @@ from lahja._snappy import check_has_snappy_support
 from lahja.base import (
     BaseEndpoint,
     ConnectionAPI,
+    RemoteEndpointAPI,
     TResponse,
     TStreamEvent,
     TSubscribeEvent,
@@ -125,7 +126,7 @@ class Connection(ConnectionAPI):
             raise RemoteDisconnected()
 
 
-class RemoteEndpoint:
+class RemoteEndpoint(RemoteEndpointAPI):
     """
     Represents a connection to another endpoint.  Connections *can* be
     bi-directional with messages flowing in either direction.
@@ -155,13 +156,13 @@ class RemoteEndpoint:
 
         self.subscribed_messages: Set[Type[BaseEvent]] = set()
 
-        self._notify_lock = asyncio.Lock()
+        self._notify_lock = asyncio.Lock()  # type: ignore
 
-        self._received_response = asyncio.Condition()
-        self._received_subscription = asyncio.Condition()
+        self._received_response = asyncio.Condition()  # type: ignore
+        self._received_subscription = asyncio.Condition()  # type: ignore
 
-        self._running = asyncio.Event()
-        self._stopped = asyncio.Event()
+        self._running = asyncio.Event()  # type: ignore
+        self._stopped = asyncio.Event()  # type: ignore
 
     def __str__(self) -> str:
         return f"RemoteEndpoint[{self.name if self.name is not None else id(self)}]"
@@ -266,7 +267,9 @@ class RemoteEndpoint:
 
 
 @asynccontextmanager  # type: ignore
-async def run_remote_endpoint(remote: RemoteEndpoint) -> AsyncIterable[RemoteEndpoint]:
+async def run_remote_endpoint(
+    remote: RemoteEndpointAPI
+) -> AsyncIterable[RemoteEndpointAPI]:
     await remote.start()
     try:
         yield remote
@@ -297,8 +300,8 @@ class AsyncioEndpoint(BaseEndpoint):
 
     _futures: Dict[RequestID, "asyncio.Future[BaseEvent]"]
 
-    _full_connections: Dict[str, RemoteEndpoint]
-    _half_connections: Set[RemoteEndpoint]
+    _full_connections: Dict[str, RemoteEndpointAPI]
+    _half_connections: Set[RemoteEndpointAPI]
 
     _async_handler: DefaultDict[Type[BaseEvent], List[SubscriptionAsyncHandler]]
     _sync_handler: DefaultDict[Type[BaseEvent], List[SubscriptionSyncHandler]]
@@ -449,7 +452,7 @@ class AsyncioEndpoint(BaseEndpoint):
         # the Endpoint on the other end blocks until it receives this message
         await remote.notify_subscriptions_updated(self.subscribed_events)
 
-    async def _handle_client(self, remote: RemoteEndpoint) -> None:
+    async def _handle_client(self, remote: RemoteEndpointAPI) -> None:
         try:
             async with run_remote_endpoint(remote):
                 await remote.wait_stopped()
@@ -597,7 +600,7 @@ class AsyncioEndpoint(BaseEndpoint):
             self._full_connections[config.name] = remote
             self._remote_connections_changed.notify_all()
 
-    async def _handle_server(self, remote: RemoteEndpoint) -> None:
+    async def _handle_server(self, remote: RemoteEndpointAPI) -> None:
         try:
             async with run_remote_endpoint(remote):
                 await remote.wait_stopped()
