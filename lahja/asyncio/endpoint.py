@@ -172,7 +172,7 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
                     self._received_response.notify_all()
             elif isinstance(message, SubscriptionsUpdated):
                 async with self._received_subscription:
-                    self.subscribed_messages = message.subscriptions
+                    self._subscribed_events = message.subscriptions
                     self._received_subscription.notify_all()
                 # The ack is sent after releasing the lock since we've already
                 # exited the code which actually updates the subscriptions and
@@ -368,7 +368,7 @@ class AsyncioEndpoint(BaseEndpoint):
         self._server_tasks.add(task)
 
         # the Endpoint on the other end blocks until it receives this message
-        await remote.notify_subscriptions_updated(self.subscribed_events)
+        await remote.notify_subscriptions_updated(self.get_subscribed_events())
 
     async def _handle_client(self, remote: RemoteEndpointAPI) -> None:
         try:
@@ -377,8 +377,7 @@ class AsyncioEndpoint(BaseEndpoint):
         finally:
             self._half_connections.remove(remote)
 
-    @property
-    def subscribed_events(self) -> Set[Type[BaseEvent]]:
+    def get_subscribed_events(self) -> Set[Type[BaseEvent]]:
         """
         Return the set of events this Endpoint is currently listening for
         """
@@ -402,7 +401,7 @@ class AsyncioEndpoint(BaseEndpoint):
 
             # make a copy so that the set doesn't change while we iterate
             # over it
-            subscribed_events = self.subscribed_events
+            subscribed_events = self.get_subscribed_events()
             for remote in self._half_connections.copy():
                 await remote.notify_subscriptions_updated(subscribed_events)
             for remote in tuple(self._full_connections.values()):
@@ -415,7 +414,7 @@ class AsyncioEndpoint(BaseEndpoint):
         Return all connected endpoints and their event type subscriptions to this endpoint.
         """
         return tuple(
-            (outbound.name, outbound.subscribed_messages)
+            (outbound.name, outbound.get_subscribed_events())
             for outbound in self._full_connections.values()
         )
 

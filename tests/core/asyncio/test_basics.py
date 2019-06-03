@@ -92,7 +92,7 @@ async def test_stream_with_break(endpoint):
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in endpoint.subscribed_events
+    assert DummyRequest not in endpoint.get_subscribed_events()
     assert stream_counter == 2
 
 
@@ -117,7 +117,7 @@ async def test_stream_with_num_events(endpoint):
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in endpoint.subscribed_events
+    assert DummyRequest not in endpoint.get_subscribed_events()
     assert stream_counter == 2
 
 
@@ -151,7 +151,7 @@ async def test_stream_can_get_cancelled(endpoint):
 
     await asyncio.sleep(0.2)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in endpoint.subscribed_events
+    assert DummyRequest not in endpoint.get_subscribed_events()
     assert stream_counter == 2
 
     # clean up
@@ -189,7 +189,7 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint):
 
     await asyncio.sleep(0.1)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in endpoint.subscribed_events
+    assert DummyRequest not in endpoint.get_subscribed_events()
     assert stream_counter == 2
 
 
@@ -219,7 +219,7 @@ async def test_wait_for_can_get_cancelled(endpoint):
         await asyncio.wait_for(endpoint.wait_for(DummyRequest), 0.01)
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in endpoint.subscribed_events
+    assert DummyRequest not in endpoint.get_subscribed_events()
 
 
 class RemoveItem(BaseEvent):
