@@ -18,7 +18,7 @@ async def test_base_wait_until_any_remote_subscriptions_changed():
             await client.connect_to_endpoint(config)
             assert client.is_connected_to(config.name)
 
-            asyncio.ensure_future(server.subscribe(SubscriptionEvent, lambda e: None))
+            server.subscribe(SubscriptionEvent, lambda e: None)
 
             assert not client.is_any_remote_subscribed_to(SubscriptionEvent)
             await asyncio.wait_for(

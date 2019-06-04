@@ -841,7 +841,7 @@ class AsyncioEndpoint(BaseEndpoint):
         # that's a performance problem, not a correctness problem.
         self._subscriptions_changed.set()
 
-    async def subscribe(
+    def subscribe(
         self,
         event_type: Type[TSubscribeEvent],
         handler: Callable[[TSubscribeEvent], Union[Any, Awaitable[Any]]],

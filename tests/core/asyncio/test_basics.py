@@ -235,7 +235,7 @@ async def test_exceptions_dont_stop_processing(capsys, endpoint):
     def handle(message):
         the_set.remove(message.item)
 
-    await endpoint.subscribe(RemoveItem, handle)
+    endpoint.subscribe(RemoveItem, handle)
     await endpoint.wait_until_any_remote_subscribed_to(RemoveItem)
 
     # this call should work

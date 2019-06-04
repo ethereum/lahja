@@ -195,7 +195,7 @@ class EndpointAPI(ABC):
         ...
 
     @abstractmethod
-    async def subscribe(
+    def subscribe(
         self,
         event_type: Type[TSubscribeEvent],
         handler: Callable[[TSubscribeEvent], Union[Any, Awaitable[Any]]],

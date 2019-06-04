@@ -130,7 +130,7 @@ async def test_asyncio_subscribe_updates_subscriptions(pair_of_endpoints):
 
     # trigger a `wait_for` call to run in the background and give it a moment
     # to spin up.
-    subscription = await subscriber.subscribe(SubscribeEvent, received_events.append)
+    subscription = subscriber.subscribe(SubscribeEvent, received_events.append)
     await asyncio.sleep(0.01)
 
     # Now that we are within the wait_for, verify that the subscription is active
@@ -191,7 +191,7 @@ async def test_asyncio_wait_until_any_remote_subscribed_to(
 ):
     client, server_a, server_b, server_c = client_with_three_connections
 
-    asyncio.ensure_future(server_a.subscribe(WaitSubscription, noop))
+    server_a.subscribe(WaitSubscription, noop)
 
     # verify it's not currently subscribed.
     assert not client.is_any_remote_subscribed_to(WaitSubscription)
@@ -217,10 +217,10 @@ async def test_asyncio_wait_until_all_connection_subscribed_to(
 
     assert len(client._full_connections) + len(client._half_connections) == 3
 
-    await server_c.subscribe(WaitSubscription, noop)
+    server_c.subscribe(WaitSubscription, noop)
     assert got_subscription.is_set() is False
-    await server_a.subscribe(WaitSubscription, noop)
+    server_a.subscribe(WaitSubscription, noop)
     assert got_subscription.is_set() is False
-    await server_b.subscribe(WaitSubscription, noop)
+    server_b.subscribe(WaitSubscription, noop)
     await asyncio.sleep(0.01)
     assert got_subscription.is_set() is True

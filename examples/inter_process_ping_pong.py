@@ -40,13 +40,13 @@ def run_proc1():
 async def proc1_worker():
     async with AsyncioEndpoint.serve(ConnectionConfig.from_name("e1")) as endpoint:
         await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e2"))
-        await endpoint.subscribe(
+        endpoint.subscribe(
             SecondThingHappened,
             lambda event: logging.info(
                 "Received via SUBSCRIBE API in proc1: %s", event.payload
             ),
         )
-        await endpoint.subscribe(
+        endpoint.subscribe(
             FirstThingHappened,
             lambda event: logging.info("Receiving own event: %s", event.payload),
         )
@@ -69,7 +69,7 @@ async def proc2_worker():
     async with AsyncioEndpoint.serve(ConnectionConfig.from_name("e2")) as endpoint:
         await endpoint.connect_to_endpoints(ConnectionConfig.from_name("e1"))
         asyncio.ensure_future(display_proc1_events(endpoint))
-        await endpoint.subscribe(
+        endpoint.subscribe(
             FirstThingHappened,
             lambda event: logging.info(
                 "Received via SUBSCRIBE API in proc2: %s", event.payload

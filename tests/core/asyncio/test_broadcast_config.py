@@ -10,11 +10,11 @@ async def test_broadcasts_to_all_endpoints(triplet_of_endpoints):
 
     tracker = Tracker()
 
-    await endpoint1.subscribe(
+    endpoint1.subscribe(
         DummyRequestPair, tracker.track_and_broadcast_dummy(1, endpoint1)
     )
 
-    await endpoint2.subscribe(
+    endpoint2.subscribe(
         DummyRequestPair, tracker.track_and_broadcast_dummy(2, endpoint2)
     )
 
@@ -40,11 +40,11 @@ async def test_broadcasts_to_specific_endpoint(triplet_of_endpoints):
 
     tracker = Tracker()
 
-    await endpoint1.subscribe(
+    endpoint1.subscribe(
         DummyRequestPair, tracker.track_and_broadcast_dummy(1, endpoint1)
     )
 
-    await endpoint2.subscribe(
+    endpoint2.subscribe(
         DummyRequestPair, tracker.track_and_broadcast_dummy(2, endpoint1)
     )
 

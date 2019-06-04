@@ -9,7 +9,7 @@ from helpers import DummyRequestPair, DummyResponse
 async def test_wait_until_any_subscribed(triplet_of_endpoints):
     endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
 
-    await endpoint1.subscribe(DummyRequestPair, lambda _: None)
+    endpoint1.subscribe(DummyRequestPair, lambda _: None)
 
     await endpoint3.wait_until_any_remote_subscribed_to(DummyRequestPair)
 
@@ -33,9 +33,9 @@ async def test_wait_until_any_subscribed(triplet_of_endpoints):
 async def test_wait_until_all_subscribed(triplet_of_endpoints):
     endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
 
-    await endpoint1.subscribe(DummyRequestPair, lambda _: None)
+    endpoint1.subscribe(DummyRequestPair, lambda _: None)
 
-    await endpoint2.subscribe(DummyRequestPair, lambda _: None)
+    endpoint2.subscribe(DummyRequestPair, lambda _: None)
 
     await endpoint3.wait_until_all_remotes_subscribed_to(DummyRequestPair)
 
@@ -60,7 +60,7 @@ async def test_wait_until_all_subscribed(triplet_of_endpoints):
 async def test_wait_until_specific_subscribed(triplet_of_endpoints):
     endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
 
-    await endpoint1.subscribe(DummyRequestPair, lambda _: None)
+    endpoint1.subscribe(DummyRequestPair, lambda _: None)
 
     await endpoint3.wait_until_remote_subscribed_to(endpoint1.name, DummyRequestPair)
 
