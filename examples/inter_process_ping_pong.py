@@ -93,6 +93,8 @@ def is_nth_second(interval):
 
 
 if __name__ == "__main__":
+    # WARNING: The `fork` method does not work well with asyncio yet.
+    # This might change with Python 3.8 (See https://bugs.python.org/issue22087#msg318140)
     multiprocessing.set_start_method("spawn")
 
     # Start two processes
