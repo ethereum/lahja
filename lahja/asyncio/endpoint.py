@@ -36,7 +36,9 @@ from async_generator import asynccontextmanager
 from lahja._snappy import check_has_snappy_support
 from lahja.base import (
     BaseEndpoint,
+    BaseRemoteEndpoint,
     ConnectionAPI,
+    RemoteEndpointAPI,
     TResponse,
     TStreamEvent,
     TSubscribeEvent,
@@ -125,61 +127,22 @@ class Connection(ConnectionAPI):
             raise RemoteDisconnected()
 
 
-class RemoteEndpoint:
-    """
-    Represents a connection to another endpoint.  Connections *can* be
-    bi-directional with messages flowing in either direction.
-
-    A 'message' can be any of:
-
-    - ``SubscriptionsUpdated``
-            broadcasting the subscriptions that the endpoint on the other side
-            of this connection is interested in.
-    - ``SubscriptionsAck``
-            acknowledgedment of a ``SubscriptionsUpdated``
-    - ``Broadcast``
-            an event meant to be processed by the endpoint.
-    """
-
-    logger = logging.getLogger("lahja.endpoint.asyncio.RemoteEndpoint")
-
+class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
     def __init__(
         self,
         name: Optional[str],
-        conn: Connection,
+        conn: ConnectionAPI,
         new_msg_func: Callable[[Broadcast], Awaitable[Any]],
     ) -> None:
-        self.name = name
-        self.conn = conn
-        self.new_msg_func = new_msg_func
+        super().__init__(name, conn, new_msg_func)
 
-        self.subscribed_messages: Set[Type[BaseEvent]] = set()
+        self._notify_lock = asyncio.Lock()  # type: ignore
 
-        self._notify_lock = asyncio.Lock()
+        self._received_response = asyncio.Condition()  # type: ignore
+        self._received_subscription = asyncio.Condition()  # type: ignore
 
-        self._received_response = asyncio.Condition()
-        self._received_subscription = asyncio.Condition()
-
-        self._running = asyncio.Event()
-        self._stopped = asyncio.Event()
-
-    def __str__(self) -> str:
-        return f"RemoteEndpoint[{self.name if self.name is not None else id(self)}]"
-
-    def __repr__(self) -> str:
-        return f"<{self}>"
-
-    async def wait_started(self) -> None:
-        await self._running.wait()
-
-    async def wait_stopped(self) -> None:
-        await self._stopped.wait()
-
-    async def is_running(self) -> bool:
-        return not self.is_stopped and self.running.is_set()
-
-    async def is_stopped(self) -> bool:
-        return self._stopped.is_set()
+        self._running = asyncio.Event()  # type: ignore
+        self._stopped = asyncio.Event()  # type: ignore
 
     async def start(self) -> None:
         self._task = asyncio.ensure_future(self._run())
@@ -220,53 +183,11 @@ class RemoteEndpoint:
             else:
                 self.logger.error(f"received unexpected message: {message}")
 
-    async def notify_subscriptions_updated(
-        self, subscriptions: Set[Type[BaseEvent]], block: bool = True
-    ) -> None:
-        """
-        Alert the endpoint on the other side of this connection that the local
-        subscriptions have changed. If ``block`` is ``True`` then this function
-        will block until the remote endpoint has acknowledged the new
-        subscription set. If ``block`` is ``False`` then this function will
-        return immediately after the send finishes.
-        """
-        # The extra lock ensures only one coroutine can notify this endpoint at any one time
-        # and that no replies are accidentally received by the wrong
-        # coroutines. Without this, in the case where `block=True`, this inner
-        # block would release the lock on the call to `wait()` which would
-        # allow the ack from a different update to incorrectly result in this
-        # returning before the ack had been received.
-        async with self._notify_lock:
-            async with self._received_response:
-                try:
-                    await self.conn.send_message(
-                        SubscriptionsUpdated(subscriptions, block)
-                    )
-                except RemoteDisconnected:
-                    return
-                if block:
-                    await self._received_response.wait()
-
-    def can_send_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> bool:
-        if config is not None:
-            if self.name is not None and not config.allowed_to_receive(self.name):
-                return False
-            elif config.filter_event_id is not None:
-                # the item is a response to a request.
-                return True
-
-        return type(item) in self.subscribed_messages
-
-    async def send_message(self, message: Msg) -> None:
-        await self.conn.send_message(message)
-
-    async def wait_until_subscription_received(self) -> None:
-        async with self._received_subscription:
-            await self._received_subscription.wait()
-
 
 @asynccontextmanager  # type: ignore
-async def run_remote_endpoint(remote: RemoteEndpoint) -> AsyncIterable[RemoteEndpoint]:
+async def run_remote_endpoint(
+    remote: RemoteEndpointAPI
+) -> AsyncIterable[RemoteEndpointAPI]:
     await remote.start()
     try:
         yield remote
@@ -297,8 +218,8 @@ class AsyncioEndpoint(BaseEndpoint):
 
     _futures: Dict[RequestID, "asyncio.Future[BaseEvent]"]
 
-    _full_connections: Dict[str, RemoteEndpoint]
-    _half_connections: Set[RemoteEndpoint]
+    _full_connections: Dict[str, RemoteEndpointAPI]
+    _half_connections: Set[RemoteEndpointAPI]
 
     _async_handler: DefaultDict[Type[BaseEvent], List[SubscriptionAsyncHandler]]
     _sync_handler: DefaultDict[Type[BaseEvent], List[SubscriptionSyncHandler]]
@@ -439,7 +360,7 @@ class AsyncioEndpoint(BaseEndpoint):
 
     async def _accept_conn(self, reader: StreamReader, writer: StreamWriter) -> None:
         conn = Connection(reader, writer)
-        remote = RemoteEndpoint(None, conn, self._receiving_queue.put)
+        remote = AsyncioRemoteEndpoint(None, conn, self._receiving_queue.put)
         self._half_connections.add(remote)
 
         task = asyncio.ensure_future(self._handle_client(remote))
@@ -449,7 +370,7 @@ class AsyncioEndpoint(BaseEndpoint):
         # the Endpoint on the other end blocks until it receives this message
         await remote.notify_subscriptions_updated(self.subscribed_events)
 
-    async def _handle_client(self, remote: RemoteEndpoint) -> None:
+    async def _handle_client(self, remote: RemoteEndpointAPI) -> None:
         try:
             async with run_remote_endpoint(remote):
                 await remote.wait_stopped()
@@ -581,7 +502,7 @@ class AsyncioEndpoint(BaseEndpoint):
             return
 
         conn = await Connection.connect_to(config.path)
-        remote = RemoteEndpoint(config.name, conn, self._receiving_queue.put)
+        remote = AsyncioRemoteEndpoint(config.name, conn, self._receiving_queue.put)
 
         task = asyncio.ensure_future(self._handle_server(remote))
 
@@ -597,7 +518,7 @@ class AsyncioEndpoint(BaseEndpoint):
             self._full_connections[config.name] = remote
             self._remote_connections_changed.notify_all()
 
-    async def _handle_server(self, remote: RemoteEndpoint) -> None:
+    async def _handle_server(self, remote: RemoteEndpointAPI) -> None:
         try:
             async with run_remote_endpoint(remote):
                 await remote.wait_stopped()
