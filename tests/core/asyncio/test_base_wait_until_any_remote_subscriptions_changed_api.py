@@ -11,7 +11,7 @@ class SubscriptionEvent(BaseEvent):
 
 
 @pytest.mark.asyncio
-async def test_base_wait_until_any_remote_subscriptions_changed():
+async def test_base_wait_until_any_endpoint_subscriptions_changed():
     config = ConnectionConfig.from_name(generate_unique_name())
     async with AsyncioEndpoint.serve(config) as server:
         async with AsyncioEndpoint("client").run() as client:
@@ -20,8 +20,8 @@ async def test_base_wait_until_any_remote_subscriptions_changed():
 
             server.subscribe(SubscriptionEvent, lambda e: None)
 
-            assert not client.is_any_remote_subscribed_to(SubscriptionEvent)
+            assert not client.is_any_endpoint_subscribed_to(SubscriptionEvent)
             await asyncio.wait_for(
-                client.wait_until_remote_subscriptions_change(), timeout=0.1
+                client.wait_until_endpoint_subscriptions_change(), timeout=0.1
             )
-            assert client.is_any_remote_subscribed_to(SubscriptionEvent)
+            assert client.is_any_endpoint_subscribed_to(SubscriptionEvent)

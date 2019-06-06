@@ -47,7 +47,7 @@ async def proc2_worker():
     config = ConnectionConfig.from_name("e1")
     async with AsyncioEndpoint("e2").run() as client:
         await client.connect_to_endpoints(config)
-        await client.wait_until_any_remote_subscribed_to(GetSomethingRequest)
+        await client.wait_until_any_endpoint_subscribed_to(GetSomethingRequest)
 
         for i in range(3):
             print("Requesting")

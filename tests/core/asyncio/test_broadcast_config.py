@@ -18,7 +18,10 @@ async def test_broadcasts_to_all_endpoints(server_with_two_clients):
     client_a.subscribe(BroadcastEvent, return_queue.put_nowait)
     client_b.subscribe(BroadcastEvent, return_queue.put_nowait)
 
-    await server.wait_until_all_remotes_subscribed_to(BroadcastEvent)
+    await server.wait_until_all_endpoints_subscribed_to(
+        BroadcastEvent, exclude_self=True
+    )
+
     await server.broadcast(BroadcastEvent())
 
     result_a = await asyncio.wait_for(return_queue.get(), timeout=0.1)
@@ -44,8 +47,10 @@ async def test_broadcasts_to_specific_endpoint(server_with_two_clients):
     client_a.subscribe(TailEvent, return_queue.put_nowait)
     client_b.subscribe(TailEvent, return_queue.put_nowait)
 
-    await server.wait_until_all_remotes_subscribed_to(BroadcastEvent)
-    await server.wait_until_all_remotes_subscribed_to(TailEvent)
+    await server.wait_until_all_endpoints_subscribed_to(
+        BroadcastEvent, exclude_self=True
+    )
+    await server.wait_until_all_endpoints_subscribed_to(TailEvent, exclude_self=True)
 
     # broadcast once targeted at a specific endpoint
     await server.broadcast(
@@ -100,7 +105,8 @@ async def test_request_to_specific_endpoint(server_with_two_clients):
     asyncio.ensure_future(handler_b())
 
     await asyncio.wait_for(
-        server.wait_until_all_remotes_subscribed_to(Request), timeout=0.1
+        server.wait_until_all_endpoints_subscribed_to(Request, exclude_self=True),
+        timeout=0.1,
     )
 
     response_a = await asyncio.wait_for(

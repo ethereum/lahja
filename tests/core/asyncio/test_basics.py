@@ -35,7 +35,7 @@ async def test_request_response(endpoint_pair, event_loop):
         await alice.broadcast(Response(req.value), req.broadcast_config())
 
     asyncio.ensure_future(do_serve_response())
-    await bob.wait_until_any_remote_subscribed_to(Request)
+    await bob.wait_until_any_endpoint_subscribed_to(Request)
 
     response = await bob.request(Request("test-request"))
     assert isinstance(response, Response)
@@ -68,7 +68,7 @@ async def test_response_must_match(endpoint_pair):
 
     asyncio.ensure_future(do_serve_wrong_response())
 
-    await bob.wait_until_any_remote_subscribed_to(Request)
+    await bob.wait_until_any_endpoint_subscribed_to(Request)
 
     with pytest.raises(UnexpectedResponse):
         await bob.request(Request("test-wrong-response"))
@@ -93,7 +93,7 @@ async def test_stream_with_break(endpoint_pair):
                 break
 
     asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
+    await bob.wait_until_any_endpoint_subscribed_to(SimpleEvent)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(5):
@@ -117,7 +117,7 @@ async def test_stream_with_num_events(endpoint_pair):
             stream_counter += 1
 
     asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
+    await bob.wait_until_any_endpoint_subscribed_to(SimpleEvent)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(3):
@@ -151,7 +151,7 @@ async def test_stream_can_get_cancelled(endpoint_pair):
 
     stream_coro = asyncio.ensure_future(stream_response())
     cancel_coro = asyncio.ensure_future(cancel_soon())
-    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
+    await bob.wait_until_any_endpoint_subscribed_to(SimpleEvent)
 
     for i in range(50):
         await bob.broadcast(SimpleEvent())
@@ -179,7 +179,7 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint_pair):
             await asyncio.sleep(0.01)
 
     task = asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
+    await bob.wait_until_any_endpoint_subscribed_to(SimpleEvent)
 
     async def cancel_soon():
         while True:
@@ -211,7 +211,7 @@ async def test_wait_for(endpoint_pair):
         received = request
 
     asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
+    await bob.wait_until_any_endpoint_subscribed_to(SimpleEvent)
     await bob.broadcast(SimpleEvent())
 
     await asyncio.sleep(0.01)
@@ -246,7 +246,7 @@ async def test_exceptions_dont_stop_processing(caplog, endpoint_pair):
         the_set.remove(message.item)
 
     bob.subscribe(RemoveItem, handle)
-    await alice.wait_until_any_remote_subscribed_to(RemoveItem)
+    await alice.wait_until_any_endpoint_subscribed_to(RemoveItem)
 
     # this call should work
     caplog.clear()

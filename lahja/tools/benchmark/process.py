@@ -92,7 +92,7 @@ class BroadcastDriver(BaseDriverProcess):
     @staticmethod
     async def do_driver(event_bus: BaseEndpoint, config: DriverProcessConfig) -> None:
         for consumer in config.connected_endpoints:
-            await event_bus.wait_until_remote_subscribed_to(
+            await event_bus.wait_until_endpoint_subscribed_to(
                 consumer.name, PerfMeasureEvent
             )
 
@@ -111,7 +111,7 @@ class RequestDriver(BaseDriverProcess):
         cls, event_bus: BaseEndpoint, config: DriverProcessConfig
     ) -> None:
         for consumer in config.connected_endpoints:
-            await event_bus.wait_until_remote_subscribed_to(
+            await event_bus.wait_until_endpoint_subscribed_to(
                 consumer.name, PerfMeasureRequest
             )
 
@@ -161,7 +161,7 @@ class BaseConsumerProcess(ABC):
             await event_bus.wait_until_connected_to(DRIVER_ENDPOINT)
             stats = await cls.do_consumer(event_bus, config)
 
-            await event_bus.wait_until_remote_subscribed_to(
+            await event_bus.wait_until_endpoint_subscribed_to(
                 REPORTER_ENDPOINT, TotalRecordedEvent
             )
 
