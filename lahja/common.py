@@ -65,6 +65,11 @@ class BaseEvent:
 
     is_bound = False
 
+    def get_origin(self) -> str:
+        if not self.is_bound:
+            raise AttributeError("Event is not bound")
+        return self._origin
+
     def bind(self, endpoint: "EndpointAPI", id: Optional[RequestID]) -> None:
         if self.is_bound:
             raise BindError("Event is already bound")
@@ -139,13 +144,18 @@ class SubscriptionsAck:
     pass
 
 
+class Hello(NamedTuple):
+    name: str
+
+
 Message.register(Broadcast)
 Message.register(SubscriptionsUpdated)
 Message.register(SubscriptionsAck)
+Message.register(Hello)
 
 
 # mypy doesn't appreciate the ABCMeta trick
-Msg = Union[Broadcast, SubscriptionsUpdated, SubscriptionsAck]
+Msg = Union[Broadcast, SubscriptionsUpdated, SubscriptionsAck, Hello]
 
 
 class RequestIDGenerator(Iterator[RequestID]):

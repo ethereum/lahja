@@ -1,61 +1,116 @@
+import asyncio
+
 import pytest
 
-from helpers import DummyRequestPair, DummyResponse, Tracker
-from lahja import BroadcastConfig
+from lahja import BaseEvent, BaseRequestResponseEvent, BroadcastConfig
+
+
+class BroadcastEvent(BaseEvent):
+    pass
 
 
 @pytest.mark.asyncio
-async def test_broadcasts_to_all_endpoints(triplet_of_endpoints):
-    endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
+async def test_broadcasts_to_all_endpoints(server_with_two_clients):
+    server, client_a, client_b = server_with_two_clients
 
-    tracker = Tracker()
+    return_queue = asyncio.Queue()
 
-    endpoint1.subscribe(
-        DummyRequestPair, tracker.track_and_broadcast_dummy(1, endpoint1)
-    )
+    client_a.subscribe(BroadcastEvent, return_queue.put_nowait)
+    client_b.subscribe(BroadcastEvent, return_queue.put_nowait)
 
-    endpoint2.subscribe(
-        DummyRequestPair, tracker.track_and_broadcast_dummy(2, endpoint2)
-    )
+    await server.wait_until_all_remotes_subscribed_to(BroadcastEvent)
+    await server.broadcast(BroadcastEvent())
 
-    await endpoint3.wait_until_all_remotes_subscribed_to(DummyRequestPair)
+    result_a = await asyncio.wait_for(return_queue.get(), timeout=0.1)
+    result_b = await asyncio.wait_for(return_queue.get(), timeout=0.1)
 
-    item = DummyRequestPair()
-    response = await endpoint3.request(item)
-    assert isinstance(response, DummyResponse)
-    assert tracker.exists(1)
-    assert tracker.exists(2)
-    # Ensure the registration was cleaned up
-    assert item._id not in endpoint3._futures
+    assert isinstance(result_a, BroadcastEvent)
+    assert isinstance(result_b, BroadcastEvent)
 
-    endpoint1.stop()
-    endpoint2.stop()
-    endpoint3.stop()
+
+class TailEvent(BaseEvent):
+    pass
 
 
 @pytest.mark.asyncio
-async def test_broadcasts_to_specific_endpoint(triplet_of_endpoints):
+async def test_broadcasts_to_specific_endpoint(server_with_two_clients):
 
-    endpoint1, endpoint2, endpoint3 = triplet_of_endpoints
+    server, client_a, client_b = server_with_two_clients
 
-    tracker = Tracker()
+    return_queue = asyncio.Queue()
 
-    endpoint1.subscribe(
-        DummyRequestPair, tracker.track_and_broadcast_dummy(1, endpoint1)
+    client_a.subscribe(BroadcastEvent, return_queue.put_nowait)
+    client_b.subscribe(BroadcastEvent, return_queue.put_nowait)
+    client_a.subscribe(TailEvent, return_queue.put_nowait)
+    client_b.subscribe(TailEvent, return_queue.put_nowait)
+
+    await server.wait_until_all_remotes_subscribed_to(BroadcastEvent)
+    await server.wait_until_all_remotes_subscribed_to(TailEvent)
+
+    # broadcast once targeted at a specific endpoint
+    await server.broadcast(
+        BroadcastEvent(), BroadcastConfig(filter_endpoint=client_a.name)
+    )
+    # broadcast again to all endpoints
+    await server.broadcast(TailEvent())
+
+    # get what should be all items out of the queues.
+    # by feeding the second set of events that go through both receiving
+    # endpoints we can know that our first event isn't sitting somewhere
+    # waiting to be processed since it was broadcast ahead of the tail events
+    result = await return_queue.get()
+    tail_event_a = await return_queue.get()
+    tail_event_b = await return_queue.get()
+
+    assert isinstance(result, BroadcastEvent)
+    assert isinstance(tail_event_a, TailEvent)
+    assert isinstance(tail_event_b, TailEvent)
+
+    # ensure the queues are empty as they should be.
+    assert return_queue.qsize() == 0
+
+
+class Response(BaseEvent):
+    def __init__(self, value):
+        self.value = value
+
+
+class Request(BaseRequestResponseEvent[Response]):
+    @staticmethod
+    def expected_response_type():
+        return Response
+
+    def __init__(self, value):
+        self.value = value
+
+
+@pytest.mark.asyncio
+async def test_request_to_specific_endpoint(server_with_two_clients):
+    server, client_a, client_b = server_with_two_clients
+
+    async def handler_a():
+        request = await client_a.wait_for(Request)
+        await client_a.broadcast(Response("handler-a"), request.broadcast_config())
+
+    async def handler_b():
+        request = await client_b.wait_for(Request)
+        await client_b.broadcast(Response("handler-b"), request.broadcast_config())
+
+    asyncio.ensure_future(handler_a())
+    asyncio.ensure_future(handler_b())
+
+    await asyncio.wait_for(
+        server.wait_until_all_remotes_subscribed_to(Request), timeout=0.1
     )
 
-    endpoint2.subscribe(
-        DummyRequestPair, tracker.track_and_broadcast_dummy(2, endpoint1)
+    response_a = await asyncio.wait_for(
+        server.request(Request("test"), BroadcastConfig(filter_endpoint=client_a.name)),
+        timeout=0.1,
+    )
+    response_b = await asyncio.wait_for(
+        server.request(Request("test"), BroadcastConfig(filter_endpoint=client_b.name)),
+        timeout=0.1,
     )
 
-    await endpoint3.wait_until_all_remotes_subscribed_to(DummyRequestPair)
-
-    item = DummyRequestPair()
-    response = await endpoint3.request(
-        item, BroadcastConfig(filter_endpoint=endpoint1.name)
-    )
-    assert isinstance(response, DummyResponse)
-    assert tracker.exists(1)
-    assert not tracker.exists(2)
-    # Ensure the registration was cleaned up
-    assert item._id not in endpoint3._futures
+    assert response_a.value == "handler-a"
+    assert response_b.value == "handler-b"

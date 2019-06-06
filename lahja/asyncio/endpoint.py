@@ -2,7 +2,6 @@ import asyncio
 from asyncio import StreamReader, StreamWriter
 from collections import defaultdict
 import functools
-import inspect
 import itertools
 import logging
 from pathlib import Path
@@ -53,15 +52,13 @@ from lahja.common import (
     Msg,
     RequestIDGenerator,
     Subscription,
-    SubscriptionsAck,
-    SubscriptionsUpdated,
 )
 from lahja.exceptions import (
     ConnectionAttemptRejected,
     RemoteDisconnected,
     UnexpectedResponse,
 )
-from lahja.typing import RequestID
+from lahja.typing import ConditionAPI, RequestID
 
 
 async def wait_for_path(path: Path, timeout: int = 2) -> None:
@@ -89,7 +86,7 @@ class Connection(ConnectionAPI):
         self._drain_lock = asyncio.Lock()
 
     @classmethod
-    async def connect_to(cls, path: Path) -> "Connection":
+    async def connect_to(cls, path: Path) -> "ConnectionAPI":
         reader, writer = await asyncio.open_unix_connection(str(path))
         return cls(reader, writer)
 
@@ -130,11 +127,12 @@ class Connection(ConnectionAPI):
 class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
     def __init__(
         self,
-        name: Optional[str],
+        local_name: str,
         conn: ConnectionAPI,
+        subscriptions_changed: ConditionAPI,
         new_msg_func: Callable[[Broadcast], Awaitable[Any]],
     ) -> None:
-        super().__init__(name, conn, new_msg_func)
+        super().__init__(local_name, conn, new_msg_func)
 
         self._notify_lock = asyncio.Lock()  # type: ignore
 
@@ -143,6 +141,14 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
 
         self._running = asyncio.Event()  # type: ignore
         self._stopped = asyncio.Event()  # type: ignore
+
+        self._received_subscription = subscriptions_changed
+
+        self._subscriptions_initialized = asyncio.Event()  # type: ignore
+
+        self._running = asyncio.Event()  # type: ignore
+        self._stopped = asyncio.Event()  # type: ignore
+        self._ready = asyncio.Event()  # type: ignore
 
     async def start(self) -> None:
         self._task = asyncio.ensure_future(self._run())
@@ -153,46 +159,6 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
             return
         self._stopped.set()
         self._task.cancel()
-
-    async def _run(self) -> None:
-        self._running.set()
-
-        while self.is_running:
-            try:
-                message = await self.conn.read_message()
-            except RemoteDisconnected:
-                async with self._received_response:
-                    self._received_response.notify_all()
-                return
-
-            if isinstance(message, Broadcast):
-                await self.new_msg_func(message)
-            elif isinstance(message, SubscriptionsAck):
-                async with self._received_response:
-                    self._received_response.notify_all()
-            elif isinstance(message, SubscriptionsUpdated):
-                async with self._received_subscription:
-                    self._subscribed_events = message.subscriptions
-                    self._received_subscription.notify_all()
-                # The ack is sent after releasing the lock since we've already
-                # exited the code which actually updates the subscriptions and
-                # we are merely responding to the sender to acknowledge
-                # receipt.
-                if message.response_expected:
-                    await self.send_message(SubscriptionsAck())
-            else:
-                self.logger.error(f"received unexpected message: {message}")
-
-
-@asynccontextmanager  # type: ignore
-async def run_remote_endpoint(
-    remote: RemoteEndpointAPI
-) -> AsyncIterable[RemoteEndpointAPI]:
-    await remote.start()
-    try:
-        yield remote
-    finally:
-        await remote.stop()
 
 
 TFunc = TypeVar("TFunc", bound=Callable[..., Any])
@@ -211,15 +177,10 @@ class AsyncioEndpoint(BaseEndpoint):
 
     _ipc_path: Path
 
-    _remote_connections_changed: asyncio.Condition
-
     _receiving_queue: "asyncio.Queue[Tuple[Union[bytes, BaseEvent], Optional[BroadcastConfig]]]"
     _receiving_loop_running: asyncio.Event
 
     _futures: Dict[RequestID, "asyncio.Future[BaseEvent]"]
-
-    _full_connections: Dict[str, RemoteEndpointAPI]
-    _half_connections: Set[RemoteEndpointAPI]
 
     _async_handler: DefaultDict[Type[BaseEvent], List[SubscriptionAsyncHandler]]
     _sync_handler: DefaultDict[Type[BaseEvent], List[SubscriptionSyncHandler]]
@@ -231,7 +192,6 @@ class AsyncioEndpoint(BaseEndpoint):
 
     def __init__(self, name: str) -> None:
         self.name = name
-
         try:
             self._get_request_id = RequestIDGenerator(name.encode("ascii") + b":")
         except UnicodeDecodeError:
@@ -240,12 +200,17 @@ class AsyncioEndpoint(BaseEndpoint):
             )
 
         # Signal when a new remote connection is established
-        self._remote_connections_changed = asyncio.Condition()
+        self._remote_connections_changed = asyncio.Condition()  # type: ignore
+
+        # Signal when at least one remote has had a subscription change.
+        self._remote_subscriptions_changed = asyncio.Condition()  # type: ignore
 
         # storage containers for inbound and outbound connections to other
         # endpoints
-        self._full_connections = {}
-        self._half_connections = set()
+        self._connections = set()
+
+        # event for signaling local subscriptions have changed.
+        self._subscriptions_changed = asyncio.Event()
 
         # storage for futures which are waiting for a response.
         self._futures: Dict[RequestID, "asyncio.Future[BaseEvent]"] = {}
@@ -360,22 +325,14 @@ class AsyncioEndpoint(BaseEndpoint):
 
     async def _accept_conn(self, reader: StreamReader, writer: StreamWriter) -> None:
         conn = Connection(reader, writer)
-        remote = AsyncioRemoteEndpoint(None, conn, self._receiving_queue.put)
-        self._half_connections.add(remote)
+        remote = AsyncioRemoteEndpoint(
+            local_name=self.name,
+            conn=conn,
+            subscriptions_changed=self._remote_subscriptions_changed,
+            new_msg_func=self._receiving_queue.put,
+        )
 
-        task = asyncio.ensure_future(self._handle_client(remote))
-        task.add_done_callback(self._server_tasks.remove)
-        self._server_tasks.add(task)
-
-        # the Endpoint on the other end blocks until it receives this message
-        await remote.notify_subscriptions_updated(self.get_subscribed_events())
-
-    async def _handle_client(self, remote: RemoteEndpointAPI) -> None:
-        try:
-            async with run_remote_endpoint(remote):
-                await remote.wait_stopped()
-        finally:
-            self._half_connections.remove(remote)
+        self._server_tasks.add(asyncio.ensure_future(self._run_remote_endpoint(remote)))
 
     def get_subscribed_events(self) -> Set[Type[BaseEvent]]:
         """
@@ -388,8 +345,6 @@ class AsyncioEndpoint(BaseEndpoint):
         )
 
     async def _monitor_subscription_changes(self) -> None:
-        self._subscriptions_changed = asyncio.Event()
-
         while self.is_running:
             # We wait for the event to change and then immediately replace it
             # with a new event.  This **must** occur before any additional
@@ -402,21 +357,16 @@ class AsyncioEndpoint(BaseEndpoint):
             # make a copy so that the set doesn't change while we iterate
             # over it
             subscribed_events = self.get_subscribed_events()
-            for remote in self._half_connections.copy():
-                await remote.notify_subscriptions_updated(subscribed_events)
-            for remote in tuple(self._full_connections.values()):
-                await remote.notify_subscriptions_updated(subscribed_events)
 
-    def get_connected_endpoints_and_subscriptions(
-        self
-    ) -> Tuple[Tuple[Optional[str], Set[Type[BaseEvent]]], ...]:
-        """
-        Return all connected endpoints and their event type subscriptions to this endpoint.
-        """
-        return tuple(
-            (outbound.name, outbound.get_subscribed_events())
-            for outbound in self._full_connections.values()
-        )
+            async with self._remote_connections_changed:
+                await asyncio.gather(
+                    *(
+                        remote.notify_subscriptions_updated(
+                            subscribed_events, block=False
+                        )
+                        for remote in self._connections
+                    )
+                )
 
     def _compress_event(self, event: BaseEvent) -> Union[BaseEvent, bytes]:
         if self.has_snappy_support:
@@ -442,7 +392,7 @@ class AsyncioEndpoint(BaseEndpoint):
                 raise ConnectionAttemptRejected(
                     f"Trying to connect to {config.name} twice. Names must be uniqe."
                 )
-            elif config.name in self._full_connections.keys():
+            elif self.is_connected_to(config.name):
                 raise ConnectionAttemptRejected(
                     f"Already connected to {config.name} at {config.path}. Names must be unique."
                 )
@@ -493,17 +443,16 @@ class AsyncioEndpoint(BaseEndpoint):
 
     async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
         self._throw_if_already_connected(config)
-        if config.name in self._full_connections.keys():
-            self.logger.warning(
-                "Tried to connect to %s but we are already connected to that Endpoint",
-                config.name,
-            )
-            return
 
         conn = await Connection.connect_to(config.path)
-        remote = AsyncioRemoteEndpoint(config.name, conn, self._receiving_queue.put)
+        remote = AsyncioRemoteEndpoint(
+            local_name=self.name,
+            conn=conn,
+            subscriptions_changed=self._remote_subscriptions_changed,
+            new_msg_func=self._receiving_queue.put,
+        )
 
-        task = asyncio.ensure_future(self._handle_server(remote))
+        task = asyncio.ensure_future(self._run_remote_endpoint(remote))
 
         task.add_done_callback(self._endpoint_tasks.remove)
 
@@ -511,50 +460,54 @@ class AsyncioEndpoint(BaseEndpoint):
 
         # block until we've received the other endpoint's subscriptions to
         # ensure that it is safe to broadcast
-        await remote.wait_until_subscription_received()
+        await self.wait_until_connected_to(config.name)
 
-        async with self._remote_connections_changed:
-            self._full_connections[config.name] = remote
-            self._remote_connections_changed.notify_all()
+    async def _run_remote_endpoint(self, remote: RemoteEndpointAPI) -> None:
+        await remote.start()
 
-    async def _handle_server(self, remote: RemoteEndpointAPI) -> None:
         try:
-            async with run_remote_endpoint(remote):
-                await remote.wait_stopped()
+            await remote.wait_ready()
+            await self._add_connection(remote)
+            await remote.wait_until_subscription_initialized()
+            await remote.wait_stopped()
         finally:
-            if remote.name is not None:
-                async with self._remote_connections_changed:
-                    self._full_connections.pop(remote.name)
-                    self._remote_connections_changed.notify_all()
+            await remote.stop()
+            if remote in self._connections:
+                await self._remove_connection(remote)
 
-    async def wait_until_remote_subscriptions_change(self) -> None:
-        # We construct a set of awaitables that includes each individual
-        # remote's `wait_until_subscription_received` and a single call to the
-        # local `wait_until_connections_change`.  Once any one of these
-        # returns, we return, signaling that something has changed about our
-        # remote subscriptions.
+    async def _add_connection(self, remote: RemoteEndpointAPI) -> None:
+        if remote in self._connections:
+            raise Exception("TODO: remote is already tracked")
+        elif self.is_connected_to(remote.name):
+            raise Exception(
+                f"TODO: already connected to remote with name {remote.name}"
+            )
 
-        wait_remote_subscriptions_change = tuple(
-            remote.wait_until_subscription_received()
-            for remote in self._full_connections.values()
-        )
-        wait_connection_changed = self.wait_until_connections_change()
-
-        _, pending = await asyncio.wait(
-            (wait_connection_changed,) + wait_remote_subscriptions_change,
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        # We cancel the other pending waits
-        for task in pending:
-            task.cancel()
-
-    async def wait_until_connections_change(self) -> None:
         async with self._remote_connections_changed:
-            await self._remote_connections_changed.wait()
+            # then add them to our set of connections and signal that both
+            # the remote connections and subscriptions have been updated.
+            await remote.notify_subscriptions_updated(self.get_subscribed_events())
+            self._connections.add(remote)
+            self._remote_connections_changed.notify_all()
+        async with self._remote_subscriptions_changed:
+            self._remote_subscriptions_changed.notify_all()
 
-    def is_connected_to(self, endpoint_name: str) -> bool:
-        return endpoint_name in self._full_connections
+    async def _remove_connection(self, remote: RemoteEndpointAPI) -> None:
+        async with self._remote_connections_changed:
+            self._connections.remove(remote)
+            self._remote_connections_changed.notify_all()
+        async with self._remote_subscriptions_changed:
+            self._remote_subscriptions_changed.notify_all()
+
+    async def _run_async_subscription_handler(
+        self, handler: Callable[[BaseEvent], Awaitable[Any]], item: BaseEvent
+    ) -> None:
+        try:
+            await handler(item)
+        except Exception:
+            self.logger.debug(
+                "%s: Error in subscription handler %s", self, handler, exc_info=True
+            )
 
     async def _process_item(
         self, item: BaseEvent, config: Optional[BroadcastConfig]
@@ -573,11 +526,22 @@ class AsyncioEndpoint(BaseEndpoint):
 
         if event_type in self._sync_handler:
             for handler in self._sync_handler[event_type]:
-                handler(item)
+                try:
+                    handler(item)
+                except Exception:
+                    self.logger.debug(
+                        "%s: Error in subscription handler %s",
+                        self,
+                        handler,
+                        exc_info=True,
+                    )
 
         if event_type in self._async_handler:
             await asyncio.gather(
-                *(handler(item) for handler in self._async_handler[event_type])
+                *(
+                    self._run_async_subscription_handler(handler, item)
+                    for handler in self._async_handler[event_type]
+                )
             )
 
     def stop_server(self) -> None:
@@ -655,22 +619,19 @@ class AsyncioEndpoint(BaseEndpoint):
             return
 
         # Broadcast to every connected Endpoint that is allowed to receive the event
-        compressed_item = self._compress_event(item)
-        disconnected_endpoints = []
-        for name, remote in list(self._full_connections.items()):
-            # list() makes a copy, so changes to _outbount_connections don't cause errors
-            if remote.can_send_item(item, config):
-                try:
-                    await remote.send_message(Broadcast(compressed_item, config))
-                except RemoteDisconnected:
-                    self.logger.debug(f"Remote endpoint {name} no longer exists")
-                    disconnected_endpoints.append(name)
+        remotes_for_broadcast = tuple(
+            remote for remote in self._connections if remote.can_send_item(item, config)
+        )
 
-        if disconnected_endpoints:
-            async with self._remote_connections_changed:
-                for name in disconnected_endpoints:
-                    self._full_connections.pop(name, None)
-                self._remote_connections_changed.notify_all()
+        compressed_item = self._compress_event(item)
+
+        message = Broadcast(compressed_item, config)
+        for remote in remotes_for_broadcast:
+            try:
+                await remote.send_message(message)
+            except RemoteDisconnected:
+                self.logger.debug(f"Remote endpoint {remote} no longer connected")
+                await remote.stop()
 
     def broadcast_nowait(
         self, item: BaseEvent, config: Optional[BroadcastConfig] = None
@@ -771,7 +732,7 @@ class AsyncioEndpoint(BaseEndpoint):
         A handler is passed as a second argument an :class:`~lahja.common.Subscription` is returned
         to unsubscribe from the event if needed.
         """
-        if inspect.iscoroutine(handler):
+        if asyncio.iscoroutinefunction(handler):
             casted_handler = cast(SubscriptionAsyncHandler, handler)
             self._async_handler[event_type].append(casted_handler)
             unsubscribe_fn = functools.partial(

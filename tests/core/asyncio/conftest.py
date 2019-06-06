@@ -11,49 +11,44 @@ def generate_unique_name():
 
 
 @pytest.fixture
-async def endpoint(event_loop, ipc_base_path):
-    config = ConnectionConfig.from_name(generate_unique_name(), base_path=ipc_base_path)
-    async with AsyncioEndpoint.serve(config) as endpoint:
-        # We need to connect to our own Endpoint if we care about receiving
-        # the events we broadcast. Many tests use the same Endpoint for
-        # broadcasting and receiving which is a valid use case so we hook it up
-        await endpoint.connect_to_endpoint(config)
-        yield endpoint
+def unique_name():
+    return generate_unique_name()
 
 
 @pytest.fixture
-async def pair_of_endpoints(event_loop, ipc_base_path):
-    config_1 = ConnectionConfig.from_name(
-        generate_unique_name(), base_path=ipc_base_path
-    )
-    config_2 = ConnectionConfig.from_name(
-        generate_unique_name(), base_path=ipc_base_path
-    )
-
-    async with AsyncioEndpoint.serve(config_1) as endpoint1:
-        async with AsyncioEndpoint.serve(config_2) as endpoint2:
-            await endpoint1.connect_to_endpoints(config_2)
-            await endpoint2.connect_to_endpoints(config_1)
-            yield endpoint1, endpoint2
+def server_config(unique_name, ipc_base_path):
+    return ConnectionConfig.from_name(f"server-{unique_name}", base_path=ipc_base_path)
 
 
 @pytest.fixture
-async def triplet_of_endpoints(event_loop, ipc_base_path):
-    config_1 = ConnectionConfig.from_name(
-        generate_unique_name(), base_path=ipc_base_path
-    )
-    config_2 = ConnectionConfig.from_name(
-        generate_unique_name(), base_path=ipc_base_path
-    )
-    config_3 = ConnectionConfig.from_name(
-        generate_unique_name(), base_path=ipc_base_path
-    )
+async def endpoint_server(server_config):
+    async with AsyncioEndpoint.serve(server_config) as server:
+        yield server
 
-    async with AsyncioEndpoint.serve(config_1) as endpoint1:
-        async with AsyncioEndpoint.serve(config_2) as endpoint2:
-            async with AsyncioEndpoint.serve(config_3) as endpoint3:
-                await endpoint1.connect_to_endpoints(config_2, config_3)
-                await endpoint2.connect_to_endpoints(config_1, config_3)
-                await endpoint3.connect_to_endpoints(config_1, config_2)
 
-                yield endpoint1, endpoint2, endpoint3
+@pytest.fixture
+async def endpoint_client(server_config, endpoint_server, unique_name):
+    async with AsyncioEndpoint(f"client-{unique_name}").run() as client:
+        await client.connect_to_endpoint(server_config)
+        await endpoint_server.wait_until_connected_to(client.name)
+        yield client
+
+
+@pytest.fixture(params=("client-server", "server-client"))
+def endpoint_pair(request, endpoint_client, endpoint_server):
+    if request.param == "client-server":
+        return endpoint_client, endpoint_server
+    elif request.param == "server-client":
+        return endpoint_server, endpoint_client
+    else:
+        raise Exception(f"Unknown param: {request.param}")
+
+
+@pytest.fixture(scope="function")
+async def server_with_two_clients(
+    unique_name, server_config, endpoint_server, endpoint_client
+):
+    async with AsyncioEndpoint(f"3rd-wheel-{unique_name}").run() as client_b:
+        await client_b.connect_to_endpoint(server_config)
+        await endpoint_server.wait_until_connected_to(client_b.name)
+        yield endpoint_server, endpoint_client, client_b

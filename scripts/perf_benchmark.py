@@ -10,9 +10,11 @@ from lahja.tools.benchmark.constants import (
     REPORTER_ENDPOINT,
     ROOT_ENDPOINT,
 )
+from lahja.tools.benchmark.logging import setup_stderr_lahja_logging
 from lahja.tools.benchmark.process import (
     BroadcastConsumer,
     BroadcastDriver,
+    ConsumerConfig,
     DriverProcessConfig,
     ReportingProcess,
     ReportingProcessConfig,
@@ -51,6 +53,11 @@ parser.add_argument(
     choices=("broadcast", "request"),
     help="benchmarks request/response round trip",
 )
+parser.add_argument(
+    "--enable-debug-logs",
+    action="store_true",
+    help="Turns on DEBUG level logging to stderr to the `lahja` namespaced loggers.",
+)
 
 
 async def run(args: argparse.Namespace, backend: BaseBackend):
@@ -86,13 +93,19 @@ async def run(args: argparse.Namespace, backend: BaseBackend):
             throttle=args.throttle,
             payload_bytes=args.payload_bytes,
             backend=backend,
+            debug_logging=args.enable_debug_logs,
         )
         reporter = ReportingProcess(reporting_config)
         reporter.start()
 
+        consumer_config = ConsumerConfig(
+            num_events=args.num_events,
+            backend=backend,
+            debug_logging=args.enable_debug_logs,
+        )
         for n in range(args.num_processes):
             consumer_process = ConsumerClass(
-                create_consumer_endpoint_name(n), args.num_events, backend=backend
+                create_consumer_endpoint_name(n), consumer_config
             )
             consumer_process.start()
 
@@ -103,6 +116,7 @@ async def run(args: argparse.Namespace, backend: BaseBackend):
             throttle=args.throttle,
             payload_bytes=args.payload_bytes,
             backend=backend,
+            debug_logging=args.enable_debug_logs,
         )
         driver = DriverClass(driver_config)
         driver.start()
@@ -117,6 +131,9 @@ if __name__ == "__main__":
     # WARNING: The `fork` method does not work well with asyncio yet.
     # This might change with Python 3.8 (See https://bugs.python.org/issue22087#msg318140)
     multiprocessing.set_start_method("spawn")
+
+    if args.enable_debug_logs:
+        setup_stderr_lahja_logging()
 
     for backend_str in args.backend or ["asyncio"]:
         if backend_str == "asyncio":
