@@ -4,7 +4,6 @@ import pickle
 
 import pytest
 
-from helpers import DummyRequest, DummyRequestPair
 from lahja import (
     AsyncioEndpoint,
     BaseEvent,
@@ -47,7 +46,7 @@ async def test_request_response(endpoint_pair, event_loop):
 async def test_request_can_get_cancelled(endpoint_pair):
     alice, bob = endpoint_pair
 
-    item = DummyRequestPair()
+    item = Request("test")
     with pytest.raises(asyncio.TimeoutError):
         await asyncio.wait_for(alice.request(item), 0.0001)
     await asyncio.sleep(0.01)
@@ -75,6 +74,10 @@ async def test_response_must_match(endpoint_pair):
         await bob.request(Request("test-wrong-response"))
 
 
+class SimpleEvent(BaseEvent):
+    pass
+
+
 @pytest.mark.asyncio
 async def test_stream_with_break(endpoint_pair):
     alice, bob = endpoint_pair
@@ -82,10 +85,7 @@ async def test_stream_with_break(endpoint_pair):
     stream_counter = 0
 
     async def stream_response():
-        async for event in alice.stream(DummyRequest):
-            # Accessing `ev.property_of_dummy_request` here allows us to validate
-            # mypy has the type information we think it has. We run mypy on the tests.
-            print(event.property_of_dummy_request)
+        async for event in alice.stream(SimpleEvent):
             nonlocal stream_counter
             stream_counter += 1
 
@@ -93,15 +93,15 @@ async def test_stream_with_break(endpoint_pair):
                 break
 
     asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(DummyRequest)
+    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(5):
-        await bob.broadcast(DummyRequest())
+        await bob.broadcast(SimpleEvent())
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in alice.get_subscribed_events()
+    assert SimpleEvent not in alice.get_subscribed_events()
     assert stream_counter == 2
 
 
@@ -113,22 +113,19 @@ async def test_stream_with_num_events(endpoint_pair):
 
     async def stream_response():
         nonlocal stream_counter
-        async for event in alice.stream(DummyRequest, num_events=2):
-            # Accessing `ev.property_of_dummy_request` here allows us to validate
-            # mypy has the type information we think it has. We run mypy on the tests.
-            print(event.property_of_dummy_request)
+        async for event in alice.stream(SimpleEvent, num_events=2):
             stream_counter += 1
 
     asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(DummyRequest)
+    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
 
     # we broadcast one more item than what we consume and test for that
     for i in range(3):
-        await bob.broadcast(DummyRequest())
+        await bob.broadcast(SimpleEvent())
 
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in alice.get_subscribed_events()
+    assert SimpleEvent not in alice.get_subscribed_events()
     assert stream_counter == 2
 
 
@@ -138,14 +135,11 @@ async def test_stream_can_get_cancelled(endpoint_pair):
 
     stream_counter = 0
 
-    async_generator = alice.stream(DummyRequest)
+    async_generator = alice.stream(SimpleEvent)
 
     async def stream_response():
         nonlocal stream_counter
         async for event in async_generator:
-            # Accessing `ev.property_of_dummy_request` here allows us to validate
-            # mypy has the type information we think it has. We run mypy on the tests.
-            print(event.property_of_dummy_request)
             stream_counter += 1
             await asyncio.sleep(0.1)
 
@@ -157,14 +151,14 @@ async def test_stream_can_get_cancelled(endpoint_pair):
 
     stream_coro = asyncio.ensure_future(stream_response())
     cancel_coro = asyncio.ensure_future(cancel_soon())
-    await bob.wait_until_any_remote_subscribed_to(DummyRequest)
+    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
 
     for i in range(50):
-        await bob.broadcast(DummyRequest())
+        await bob.broadcast(SimpleEvent())
 
     await asyncio.sleep(0.2)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in alice.get_subscribed_events()
+    assert SimpleEvent not in alice.get_subscribed_events()
     assert stream_counter == 2
 
     # clean up
@@ -180,15 +174,12 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint_pair):
 
     async def stream_response():
         nonlocal stream_counter
-        async for event in alice.stream(DummyRequest):
-            # Accessing `ev.property_of_dummy_request` here allows us to validate
-            # mypy has the type information we think it has. We run mypy on the tests.
-            print(event.property_of_dummy_request)
+        async for event in alice.stream(SimpleEvent):
             stream_counter += 1
             await asyncio.sleep(0.01)
 
     task = asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(DummyRequest)
+    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
 
     async def cancel_soon():
         while True:
@@ -200,11 +191,11 @@ async def test_stream_cancels_when_parent_task_is_cancelled(endpoint_pair):
     asyncio.ensure_future(cancel_soon())
 
     for i in range(10):
-        await bob.broadcast(DummyRequest())
+        await bob.broadcast(SimpleEvent())
 
     await asyncio.sleep(0.1)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in alice.get_subscribed_events()
+    assert SimpleEvent not in alice.get_subscribed_events()
     assert stream_counter == 2
 
 
@@ -215,19 +206,16 @@ async def test_wait_for(endpoint_pair):
     received = None
 
     async def stream_response():
-        request = await alice.wait_for(DummyRequest)
-        # Accessing `request.property_of_dummy_request` here allows us to validate
-        # mypy has the type information we think it has. We run mypy on the tests.
-        print(request.property_of_dummy_request)
+        request = await alice.wait_for(SimpleEvent)
         nonlocal received
         received = request
 
     asyncio.ensure_future(stream_response())
-    await bob.wait_until_any_remote_subscribed_to(DummyRequest)
-    await bob.broadcast(DummyRequest())
+    await bob.wait_until_any_remote_subscribed_to(SimpleEvent)
+    await bob.broadcast(SimpleEvent())
 
     await asyncio.sleep(0.01)
-    assert isinstance(received, DummyRequest)
+    assert isinstance(received, SimpleEvent)
 
 
 @pytest.mark.asyncio
@@ -235,10 +223,10 @@ async def test_wait_for_can_get_cancelled(endpoint_pair):
     alice, _ = endpoint_pair
 
     with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(alice.wait_for(DummyRequest), 0.01)
+        await asyncio.wait_for(alice.wait_for(SimpleEvent), 0.01)
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
-    assert DummyRequest not in alice.get_subscribed_events()
+    assert SimpleEvent not in alice.get_subscribed_events()
 
 
 class RemoveItem(BaseEvent):

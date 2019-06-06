@@ -473,11 +473,7 @@ class AsyncioEndpoint(BaseEndpoint):
         finally:
             await remote.stop()
             if remote in self._connections:
-                async with self._remote_connections_changed:
-                    self._connections.remove(remote)
-                    self._remote_connections_changed.notify_all()
-                async with self._remote_subscriptions_changed:
-                    self._remote_subscriptions_changed.notify_all()
+                await self._remove_connection(remote)
 
     async def _add_connection(self, remote: RemoteEndpointAPI) -> None:
         if remote in self._connections:
@@ -492,6 +488,13 @@ class AsyncioEndpoint(BaseEndpoint):
             # the remote connections and subscriptions have been updated.
             await remote.notify_subscriptions_updated(self.get_subscribed_events())
             self._connections.add(remote)
+            self._remote_connections_changed.notify_all()
+        async with self._remote_subscriptions_changed:
+            self._remote_subscriptions_changed.notify_all()
+
+    async def _remove_connection(self, remote: RemoteEndpointAPI) -> None:
+        async with self._remote_connections_changed:
+            self._connections.remove(remote)
             self._remote_connections_changed.notify_all()
         async with self._remote_subscriptions_changed:
             self._remote_subscriptions_changed.notify_all()

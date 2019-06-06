@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from lahja import BaseEvent, BroadcastConfig
+from lahja import BaseEvent, BaseRequestResponseEvent, BroadcastConfig
 
 
 class BroadcastEvent(BaseEvent):
@@ -68,3 +68,49 @@ async def test_broadcasts_to_specific_endpoint(server_with_two_clients):
 
     # ensure the queues are empty as they should be.
     assert return_queue.qsize() == 0
+
+
+class Response(BaseEvent):
+    def __init__(self, value):
+        self.value = value
+
+
+class Request(BaseRequestResponseEvent[Response]):
+    @staticmethod
+    def expected_response_type():
+        return Response
+
+    def __init__(self, value):
+        self.value = value
+
+
+@pytest.mark.asyncio
+async def test_request_to_specific_endpoint(server_with_two_clients):
+    server, client_a, client_b = server_with_two_clients
+
+    async def handler_a():
+        request = await client_a.wait_for(Request)
+        await client_a.broadcast(Response("handler-a"), request.broadcast_config())
+
+    async def handler_b():
+        request = await client_b.wait_for(Request)
+        await client_b.broadcast(Response("handler-b"), request.broadcast_config())
+
+    asyncio.ensure_future(handler_a())
+    asyncio.ensure_future(handler_b())
+
+    await asyncio.wait_for(
+        server.wait_until_all_remotes_subscribed_to(Request), timeout=0.1
+    )
+
+    response_a = await asyncio.wait_for(
+        server.request(Request("test"), BroadcastConfig(filter_endpoint=client_a.name)),
+        timeout=0.1,
+    )
+    response_b = await asyncio.wait_for(
+        server.request(Request("test"), BroadcastConfig(filter_endpoint=client_b.name)),
+        timeout=0.1,
+    )
+
+    assert response_a.value == "handler-a"
+    assert response_b.value == "handler-b"
