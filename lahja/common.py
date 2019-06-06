@@ -165,3 +165,19 @@ class RequestIDGenerator(Iterator[RequestID]):
 
     def __next__(self) -> RequestID:
         return self._base + next(self._counter).to_bytes(4, "little")  # type: ignore
+
+
+def should_endpoint_receive_item(
+    item: BaseEvent,
+    config: Optional[BroadcastConfig],
+    endpoint_name: str,
+    subscribed_events: Set[Type[BaseEvent]],
+) -> bool:
+    if config is not None:
+        if not config.allowed_to_receive(endpoint_name):
+            return False
+        elif config.filter_event_id is not None:
+            # the item is a response to a request.
+            return True
+
+    return type(item) in subscribed_events

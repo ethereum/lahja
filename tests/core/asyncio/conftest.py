@@ -21,6 +21,12 @@ def server_config(unique_name, ipc_base_path):
 
 
 @pytest.fixture
+async def endpoint():
+    async with AsyncioEndpoint(generate_unique_name()).run() as endpoint:
+        yield endpoint
+
+
+@pytest.fixture
 async def endpoint_server(server_config):
     async with AsyncioEndpoint.serve(server_config) as server:
         yield server
