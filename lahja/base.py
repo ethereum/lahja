@@ -128,10 +128,6 @@ class RemoteEndpointAPI(ABC):
         ...
 
     @abstractmethod
-    def can_send_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> bool:
-        ...
-
-    @abstractmethod
     async def send_message(self, message: Msg) -> None:
         ...
 
@@ -291,16 +287,6 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
                     return
                 if block:
                     await self._received_response.wait()
-
-    def can_send_item(self, item: BaseEvent, config: Optional[BroadcastConfig]) -> bool:
-        if config is not None:
-            if self.name is not None and not config.allowed_to_receive(self.name):
-                return False
-            elif config.filter_event_id is not None:
-                # the item is a response to a request.
-                return True
-
-        return type(item) in self._subscribed_events
 
     async def send_message(self, message: Msg) -> None:
         await self.conn.send_message(message)

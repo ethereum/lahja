@@ -52,6 +52,7 @@ from lahja.common import (
     Msg,
     RequestIDGenerator,
     Subscription,
+    should_endpoint_receive_item,
 )
 from lahja.exceptions import (
     ConnectionAttemptRejected,
@@ -388,7 +389,11 @@ class AsyncioEndpoint(BaseEndpoint):
         seen: Set[str] = set()
 
         for config in endpoints:
-            if config.name in seen:
+            if config.name == self.name:
+                raise ConnectionAttemptRejected(
+                    f"Cannot connect an endpoint to itself."
+                )
+            elif config.name in seen:
                 raise ConnectionAttemptRejected(
                     f"Trying to connect to {config.name} twice. Names must be uniqe."
                 )
@@ -612,15 +617,23 @@ class AsyncioEndpoint(BaseEndpoint):
     ) -> None:
         item.bind(self, id)
 
-        if config is not None and config.internal:
-            # Internal events simply bypass going over the event bus and are
-            # processed immediately.
+        if should_endpoint_receive_item(
+            item, config, self.name, self.get_subscribed_events()
+        ):
             await self._process_item(item, config)
+
+        if config is not None and config.internal:
+            # if the event is flagged as internal we exit early since it should
+            # not be broadcast beyond this endpoint
             return
 
         # Broadcast to every connected Endpoint that is allowed to receive the event
         remotes_for_broadcast = tuple(
-            remote for remote in self._connections if remote.can_send_item(item, config)
+            remote
+            for remote in self._connections
+            if should_endpoint_receive_item(
+                item, config, remote.name, remote.get_subscribed_events()
+            )
         )
 
         compressed_item = self._compress_event(item)
