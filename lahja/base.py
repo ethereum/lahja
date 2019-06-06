@@ -74,8 +74,6 @@ class RemoteEndpointAPI(ABC):
     name: Optional[str]
     conn: ConnectionAPI
 
-    subscribed_messages: Set[Type[BaseEvent]]
-
     _running: EventAPI
     _stopped: EventAPI
 
@@ -84,7 +82,7 @@ class RemoteEndpointAPI(ABC):
     _received_response: ConditionAPI
     _received_subscription: ConditionAPI
 
-    subscribed_events: Set[Type[BaseEvent]]
+    _subscribed_events: Set[Type[BaseEvent]]
 
     _subscriptions_initialized: EventAPI
 
@@ -122,6 +120,10 @@ class RemoteEndpointAPI(ABC):
     #
     # Core external API
     #
+    @abstractmethod
+    def get_subscribed_events(self) -> Set[Type[BaseEvent]]:
+        ...
+
     @abstractmethod
     async def notify_subscriptions_updated(
         self, subscriptions: Set[Type[BaseEvent]], block: bool = True
@@ -169,7 +171,7 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
         self.conn = conn
         self.new_msg_func = new_msg_func
 
-        self.subscribed_messages: Set[Type[BaseEvent]] = set()
+        self._subscribed_events = set()
 
     def __str__(self) -> str:
         return f"RemoteEndpoint[{self.name if self.name is not None else id(self)}]"
@@ -188,6 +190,9 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
 
     def is_stopped(self) -> bool:
         return self._stopped.is_set()
+
+    def get_subscribed_events(self) -> Set[Type[BaseEvent]]:
+        return self._subscribed_events
 
     async def notify_subscriptions_updated(
         self, subscriptions: Set[Type[BaseEvent]], block: bool = True
@@ -224,7 +229,7 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
                 # the item is a response to a request.
                 return True
 
-        return type(item) in self.subscribed_messages
+        return type(item) in self._subscribed_events
 
     async def send_message(self, message: Msg) -> None:
         await self.conn.send_message(message)

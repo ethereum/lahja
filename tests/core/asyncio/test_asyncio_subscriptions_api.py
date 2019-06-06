@@ -14,8 +14,8 @@ async def test_asyncio_stream_api_updates_subscriptions(pair_of_endpoints):
     subscriber, other = pair_of_endpoints
     remote = other._full_connections[subscriber.name]
 
-    assert StreamEvent not in remote.subscribed_messages
-    assert StreamEvent not in subscriber.subscribed_events
+    assert StreamEvent not in remote.get_subscribed_events()
+    assert StreamEvent not in subscriber.get_subscribed_events()
 
     stream_agen = subscriber.stream(StreamEvent, num_events=2)
     # start the generator in the background and give it a moment to start (so
@@ -31,8 +31,8 @@ async def test_asyncio_stream_api_updates_subscriptions(pair_of_endpoints):
 
     # Now that we are within the stream, verify that the subscription is active
     # on the remote
-    assert StreamEvent in remote.subscribed_messages
-    assert StreamEvent in subscriber.subscribed_events
+    assert StreamEvent in remote.get_subscribed_events()
+    assert StreamEvent in subscriber.get_subscribed_events()
 
     # Broadcast and receive the second event, finishing the stream and
     # consequently the subscription
@@ -44,8 +44,8 @@ async def test_asyncio_stream_api_updates_subscriptions(pair_of_endpoints):
     await asyncio.sleep(0.01)
 
     # Ensure the event is no longer in the subscriptions.
-    assert StreamEvent not in remote.subscribed_messages
-    assert StreamEvent not in subscriber.subscribed_events
+    assert StreamEvent not in remote.get_subscribed_events()
+    assert StreamEvent not in subscriber.get_subscribed_events()
 
 
 @pytest.mark.asyncio
@@ -53,8 +53,8 @@ async def test_asyncio_wait_for_updates_subscriptions(pair_of_endpoints):
     subscriber, other = pair_of_endpoints
     remote = other._full_connections[subscriber.name]
 
-    assert StreamEvent not in remote.subscribed_messages
-    assert StreamEvent not in subscriber.subscribed_events
+    assert StreamEvent not in remote.get_subscribed_events()
+    assert StreamEvent not in subscriber.get_subscribed_events()
 
     # trigger a `wait_for` call to run in the background and give it a moment
     # to spin up.
@@ -63,8 +63,8 @@ async def test_asyncio_wait_for_updates_subscriptions(pair_of_endpoints):
 
     # Now that we are within the wait_for, verify that the subscription is active
     # on the remote
-    assert StreamEvent in remote.subscribed_messages
-    assert StreamEvent in subscriber.subscribed_events
+    assert StreamEvent in remote.get_subscribed_events()
+    assert StreamEvent in subscriber.get_subscribed_events()
 
     # Broadcast and receive the second event, finishing the stream and
     # consequently the subscription
@@ -75,8 +75,8 @@ async def test_asyncio_wait_for_updates_subscriptions(pair_of_endpoints):
     await asyncio.sleep(0.01)
 
     # Ensure the event is no longer in the subscriptions.
-    assert StreamEvent not in remote.subscribed_messages
-    assert StreamEvent not in subscriber.subscribed_events
+    assert StreamEvent not in remote.get_subscribed_events()
+    assert StreamEvent not in subscriber.get_subscribed_events()
 
 
 class InheretedStreamEvent(StreamEvent):
@@ -90,8 +90,8 @@ async def test_asyncio_subscription_api_does_not_match_inherited_classes(
     subscriber, other = pair_of_endpoints
     remote = other._full_connections[subscriber.name]
 
-    assert StreamEvent not in remote.subscribed_messages
-    assert StreamEvent not in subscriber.subscribed_events
+    assert StreamEvent not in remote.get_subscribed_events()
+    assert StreamEvent not in subscriber.get_subscribed_events()
 
     # trigger a `wait_for` call to run in the background and give it a moment
     # to spin up.
@@ -100,8 +100,8 @@ async def test_asyncio_subscription_api_does_not_match_inherited_classes(
 
     # Now that we are within the wait_for, verify that the subscription is active
     # on the remote
-    assert StreamEvent in remote.subscribed_messages
-    assert StreamEvent in subscriber.subscribed_events
+    assert StreamEvent in remote.get_subscribed_events()
+    assert StreamEvent in subscriber.get_subscribed_events()
 
     # Broadcast two of the inherited events and then the correct event.
     await other.broadcast(InheretedStreamEvent())
@@ -123,8 +123,8 @@ async def test_asyncio_subscribe_updates_subscriptions(pair_of_endpoints):
     subscriber, other = pair_of_endpoints
     remote = other._full_connections[subscriber.name]
 
-    assert SubscribeEvent not in remote.subscribed_messages
-    assert SubscribeEvent not in subscriber.subscribed_events
+    assert SubscribeEvent not in remote.get_subscribed_events()
+    assert SubscribeEvent not in subscriber.get_subscribed_events()
 
     received_events = []
 
@@ -135,8 +135,8 @@ async def test_asyncio_subscribe_updates_subscriptions(pair_of_endpoints):
 
     # Now that we are within the wait_for, verify that the subscription is active
     # on the remote
-    assert SubscribeEvent in remote.subscribed_messages
-    assert SubscribeEvent in subscriber.subscribed_events
+    assert SubscribeEvent in remote.get_subscribed_events()
+    assert SubscribeEvent in subscriber.get_subscribed_events()
 
     # Broadcast and receive the second event, finishing the stream and
     # consequently the subscription
@@ -148,16 +148,16 @@ async def test_asyncio_subscribe_updates_subscriptions(pair_of_endpoints):
     assert isinstance(event, SubscribeEvent)
 
     # Ensure the event is still in the subscriptions.
-    assert SubscribeEvent in remote.subscribed_messages
-    assert SubscribeEvent in subscriber.subscribed_events
+    assert SubscribeEvent in remote.get_subscribed_events()
+    assert SubscribeEvent in subscriber.get_subscribed_events()
 
     subscription.unsubscribe()
     # give the subscription removal time to propagate.
     await asyncio.sleep(0.01)
 
     # Ensure the event is no longer in the subscriptions.
-    assert SubscribeEvent not in remote.subscribed_messages
-    assert SubscribeEvent not in subscriber.subscribed_events
+    assert SubscribeEvent not in remote.get_subscribed_events()
+    assert SubscribeEvent not in subscriber.get_subscribed_events()
 
 
 @pytest.fixture
