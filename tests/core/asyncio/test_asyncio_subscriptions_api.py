@@ -192,7 +192,7 @@ def noop(event):
 
 
 @pytest.mark.asyncio
-async def test_asyncio_wait_until_any_remote_subscribed_to(
+async def test_asyncio_wait_until_any_endpoint_subscribed_to(
     client_with_three_connections
 ):
     client, server_a, server_b, server_c = client_with_three_connections
@@ -200,12 +200,12 @@ async def test_asyncio_wait_until_any_remote_subscribed_to(
     server_a.subscribe(WaitSubscription, noop)
 
     # verify it's not currently subscribed.
-    assert not client.is_any_remote_subscribed_to(WaitSubscription)
+    assert not client.is_any_endpoint_subscribed_to(WaitSubscription)
 
     await asyncio.wait_for(
-        client.wait_until_any_remote_subscribed_to(WaitSubscription), timeout=1
+        client.wait_until_any_endpoint_subscribed_to(WaitSubscription), timeout=1
     )
-    assert client.is_any_remote_subscribed_to(WaitSubscription)
+    assert client.is_any_endpoint_subscribed_to(WaitSubscription)
 
 
 @pytest.mark.asyncio
@@ -217,7 +217,7 @@ async def test_asyncio_wait_until_all_connection_subscribed_to(
     got_subscription = asyncio.Event()
 
     async def do_wait_subscriptions():
-        await client.wait_until_all_remotes_subscribed_to(WaitSubscription)
+        await client.wait_until_all_endpoints_subscribed_to(WaitSubscription)
         got_subscription.set()
 
     asyncio.ensure_future(do_wait_subscriptions())
@@ -225,14 +225,27 @@ async def test_asyncio_wait_until_all_connection_subscribed_to(
     assert len(client._connections) == 3
 
     server_c.subscribe(WaitSubscription, noop)
+    await asyncio.sleep(0.01)
     assert got_subscription.is_set() is False
     server_a.subscribe(WaitSubscription, noop)
+    await asyncio.sleep(0.01)
     assert got_subscription.is_set() is False
     server_b.subscribe(WaitSubscription, noop)
     await asyncio.sleep(0.01)
+    assert got_subscription.is_set() is False
+
+    assert client.are_all_endpoints_subscribed_to(WaitSubscription, exclude_self=True)
+    # test both default and explicit argument
+    assert not client.are_all_endpoints_subscribed_to(
+        WaitSubscription, exclude_self=False
+    )
+    assert not client.are_all_endpoints_subscribed_to(WaitSubscription)
+
+    client.subscribe(WaitSubscription, noop)
+    await asyncio.sleep(0.01)
     assert got_subscription.is_set() is True
 
-    assert client.are_all_remotes_subscribed_to(WaitSubscription)
+    assert client.are_all_endpoints_subscribed_to(WaitSubscription)
 
 
 @pytest.mark.asyncio
@@ -242,7 +255,7 @@ async def test_wait_until_specific_subscribed(client_with_three_connections):
     got_subscription = asyncio.Event()
 
     async def do_wait_subscriptions():
-        await client.wait_until_remote_subscribed_to(server_b.name, WaitSubscription)
+        await client.wait_until_endpoint_subscribed_to(server_b.name, WaitSubscription)
         got_subscription.set()
 
     asyncio.ensure_future(do_wait_subscriptions())
@@ -259,4 +272,4 @@ async def test_wait_until_specific_subscribed(client_with_three_connections):
     await asyncio.sleep(0.01)
     assert got_subscription.is_set()
 
-    assert client.is_remote_subscribed_to(server_b.name, WaitSubscription)
+    assert client.is_endpoint_subscribed_to(server_b.name, WaitSubscription)

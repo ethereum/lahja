@@ -192,7 +192,8 @@ class AsyncioEndpoint(BaseEndpoint):
     _subscriptions_changed: asyncio.Event
 
     def __init__(self, name: str) -> None:
-        self.name = name
+        super().__init__(name)
+
         try:
             self._get_request_id = RequestIDGenerator(name.encode("ascii") + b":")
         except UnicodeDecodeError:
@@ -205,10 +206,6 @@ class AsyncioEndpoint(BaseEndpoint):
 
         # Signal when at least one remote has had a subscription change.
         self._remote_subscriptions_changed = asyncio.Condition()  # type: ignore
-
-        # storage containers for inbound and outbound connections to other
-        # endpoints
-        self._connections = set()
 
         # event for signaling local subscriptions have changed.
         self._subscriptions_changed = asyncio.Event()
@@ -368,6 +365,8 @@ class AsyncioEndpoint(BaseEndpoint):
                         for remote in self._connections
                     )
                 )
+            async with self._remote_subscriptions_changed:
+                self._remote_subscriptions_changed.notify_all()
 
     def _compress_event(self, event: BaseEvent) -> Union[BaseEvent, bytes]:
         if self.has_snappy_support:
@@ -617,12 +616,15 @@ class AsyncioEndpoint(BaseEndpoint):
     ) -> None:
         item.bind(self, id)
 
-        if should_endpoint_receive_item(
+        is_eligible = should_endpoint_receive_item(
             item, config, self.name, self.get_subscribed_events()
-        ):
+        )
+        is_internal = config is not None and config.internal
+
+        if is_eligible:
             await self._process_item(item, config)
 
-        if config is not None and config.internal:
+        if is_internal:
             # if the event is flagged as internal we exit early since it should
             # not be broadcast beyond this endpoint
             return

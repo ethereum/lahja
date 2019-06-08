@@ -5,8 +5,42 @@ import pytest
 from lahja import BaseEvent, BaseRequestResponseEvent
 
 
+@pytest.mark.asyncio
+async def test_local_broadcast_is_connected_to_self(endpoint):
+    assert endpoint.is_connected_to(endpoint.name)
+
+
+@pytest.mark.asyncio
+async def test_local_broadcast_wait_until_connected_to(endpoint):
+    await asyncio.wait_for(endpoint.wait_until_connected_to(endpoint.name), timeout=0.1)
+
+
+@pytest.mark.asyncio
+async def test_local_broadcast_result_in_being_present_in_remotes(endpoint):
+    names = {name for name, _ in endpoint.get_connected_endpoints_and_subscriptions()}
+    assert endpoint.name in names
+
+
 class BroadcastEvent(BaseEvent):
     pass
+
+
+@pytest.mark.asyncio
+async def test_local_broadcast_wait_until_endpoint_subscriptions_change(endpoint):
+    ready = asyncio.Event()
+    done = asyncio.Event()
+
+    async def do_wait():
+        ready.set()
+        await endpoint.wait_until_endpoint_subscriptions_change()
+        done.set()
+
+    asyncio.ensure_future(do_wait())
+
+    await ready.wait()
+    assert not done.is_set()
+    endpoint.subscribe(BroadcastEvent, lambda ev: None)
+    await asyncio.wait_for(done.wait(), timeout=0.1)
 
 
 @pytest.mark.asyncio

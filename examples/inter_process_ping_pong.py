@@ -43,7 +43,7 @@ async def proc1_worker():
                 "Received via SUBSCRIBE API in proc1: %s", event.payload
             ),
         )
-        await server.wait_until_any_remote_subscribed_to(FirstThingHappened)
+        await server.wait_until_any_endpoint_subscribed_to(FirstThingHappened)
 
         while True:
             logging.info("Hello from proc1")
@@ -69,7 +69,7 @@ async def proc2_worker():
                 "Received via SUBSCRIBE API in proc2: %s", event.payload
             ),
         )
-        await client.wait_until_any_remote_subscribed_to(SecondThingHappened)
+        await client.wait_until_any_endpoint_subscribed_to(SecondThingHappened)
 
         while True:
             logging.info("Hello from proc2")
