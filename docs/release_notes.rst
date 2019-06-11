@@ -1,6 +1,23 @@
 Release Notes
 =============
 
+v0.14.0
+-------
+
+- Feature: Rename subscription wait APIs and ensure they also work well with local subscriptions
+
+v0.13.0
+-------
+
+- Feature: Implement a standard API for endpoints to support non-asyncio based implementations (e.g. Trio)
+- Feature: Improve flexibility of the APIs that allow waiting on subscriptions
+- Bugfix: Get rid of warnings on shutdown
+- Bugfix: Repair broken examples and add a CI job to ensure they don't break again
+- Performance: Don't send events to endpoints that aren't subscribed to the specific event
+- Performance: Reduce number of socket sends by precombinging length prefix
+- Performance: Many small performance improvements in various code paths
+- Performance: Use a faster request id implementation instead of using an uuid
+
 v0.12.0
 -------
 
