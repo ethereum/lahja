@@ -234,10 +234,10 @@ async def test_asyncio_wait_until_all_connection_subscribed_to(
     await asyncio.sleep(0.01)
     assert got_subscription.is_set() is False
 
-    assert client.are_all_endpoints_subscribed_to(WaitSubscription, exclude_self=True)
+    assert client.are_all_endpoints_subscribed_to(WaitSubscription, include_self=False)
     # test both default and explicit argument
     assert not client.are_all_endpoints_subscribed_to(
-        WaitSubscription, exclude_self=False
+        WaitSubscription, include_self=True
     )
     assert not client.are_all_endpoints_subscribed_to(WaitSubscription)
 

@@ -532,7 +532,7 @@ class EndpointAPI(ABC):
 
     @abstractmethod
     async def wait_until_all_endpoints_subscribed_to(
-        self, event: Type[BaseEvent], *, exclude_self: bool = False
+        self, event: Type[BaseEvent], *, include_self: bool = True
     ) -> None:
         """
         Block until all currently connected remote endpoints are subscribed to the specified
@@ -669,14 +669,14 @@ class BaseEndpoint(EndpointAPI):
         return False
 
     def are_all_endpoints_subscribed_to(
-        self, event_type: Type[BaseEvent], exclude_self: bool = False
+        self, event_type: Type[BaseEvent], include_self: bool = True
     ) -> bool:
         """
         Return ``True`` if every connected remote endpoint is subscribed to the specified event
         type from this endpoint. Otherwise return ``False``.
         """
         for endpoint, subscriptions in self.get_connected_endpoints_and_subscriptions():
-            if exclude_self and endpoint == self.name:
+            if not include_self and endpoint == self.name:
                 continue
 
             if event_type not in subscriptions:
@@ -711,7 +711,7 @@ class BaseEndpoint(EndpointAPI):
                 await self._remote_subscriptions_changed.wait()
 
     async def wait_until_all_endpoints_subscribed_to(
-        self, event: Type[BaseEvent], *, exclude_self: bool = False
+        self, event: Type[BaseEvent], *, include_self: bool = True
     ) -> None:
         """
         Block until all currently connected remote endpoints are subscribed to the specified
@@ -720,7 +720,7 @@ class BaseEndpoint(EndpointAPI):
         async with self._remote_subscriptions_changed:
             while True:
                 if self.are_all_endpoints_subscribed_to(
-                    event, exclude_self=exclude_self
+                    event, include_self=include_self
                 ):
                     return
                 await self._remote_subscriptions_changed.wait()
