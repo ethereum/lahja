@@ -481,10 +481,10 @@ class AsyncioEndpoint(BaseEndpoint):
 
     async def _add_connection(self, remote: RemoteEndpointAPI) -> None:
         if remote in self._connections:
-            raise Exception("TODO: remote is already tracked")
+            raise ConnectionAttemptRejected("Remote is already tracked")
         elif self.is_connected_to(remote.name):
-            raise Exception(
-                f"TODO: already connected to remote with name {remote.name}"
+            raise ConnectionAttemptRejected(
+                f"Already connected to remote with name {remote.name}"
             )
 
         async with self._remote_connections_changed:
