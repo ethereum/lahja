@@ -50,7 +50,7 @@ setup(
     name='lahja',
     # *IMPORTANT*: Don't manually change the version here. Use `make bump`, as described in readme
     version='0.14.0',
-    description="Generic event bus for inter process asyncio communication",
+    description="Generic event bus for asynchronous cross-process communication",
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='The Lahja developers',
@@ -60,12 +60,12 @@ setup(
     install_requires=[
         "async-generator>=1.10,<2",
     ],
-    python_requires='>=3.5, <4',
+    python_requires='>=3.6, <4',
     extras_require=extras_require,
     py_modules=['lahja'],
     license="MIT",
     zip_safe=False,
-    keywords='ethereum',
+    keywords='eventbus asyncio trio',
     packages=find_packages(exclude=["tests", "tests.*"]),
     package_data={'lahja': ['py.typed']},
     classifiers=[
