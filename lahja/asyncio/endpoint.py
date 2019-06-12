@@ -32,6 +32,7 @@ from typing import (  # noqa: F401
 
 from async_generator import asynccontextmanager
 
+from lahja import constants
 from lahja.base import (
     BaseEndpoint,
     BaseRemoteEndpoint,
@@ -60,7 +61,7 @@ from lahja.exceptions import (
 from lahja.typing import ConditionAPI, RequestID
 
 
-async def wait_for_path(path: Path, timeout: int = 2) -> None:
+async def wait_for_path(path: Path, timeout: int = constants.IPC_WAIT_SECONDS) -> None:
     """
     Wait for the path to appear at ``path``
     """
@@ -71,9 +72,6 @@ async def wait_for_path(path: Path, timeout: int = 2) -> None:
         await asyncio.sleep(0.05)
 
     raise TimeoutError(f"IPC socket file {path} has not appeared in {timeout} seconds")
-
-
-SIZE_MARKER_LENGTH = 4
 
 
 class AsyncioConnection(ConnectionAPI):
@@ -94,7 +92,9 @@ class AsyncioConnection(ConnectionAPI):
         size = len(pickled)
 
         try:
-            self.writer.write(size.to_bytes(SIZE_MARKER_LENGTH, "little") + pickled)
+            self.writer.write(
+                size.to_bytes(constants.SIZE_MARKER_LENGTH, "little") + pickled
+            )
             async with self._drain_lock:
                 # Use a lock to serialize drain() calls. Circumvents this bug:
                 # https://bugs.python.org/issue29930
@@ -114,7 +114,7 @@ class AsyncioConnection(ConnectionAPI):
             raise RemoteDisconnected()
 
         try:
-            raw_size = await self.reader.readexactly(SIZE_MARKER_LENGTH)
+            raw_size = await self.reader.readexactly(constants.SIZE_MARKER_LENGTH)
             size = int.from_bytes(raw_size, "little")
             message = await self.reader.readexactly(size)
             obj = cast(Message, pickle.loads(message))
@@ -513,9 +513,6 @@ class AsyncioEndpoint(BaseEndpoint):
 
     async def _await_connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
         await wait_for_path(endpoint.path)
-        # sleep for a moment to give the server time to be ready to accept
-        # connections
-        await asyncio.sleep(0.01)
         await self.connect_to_endpoint(endpoint)
 
     async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
@@ -537,7 +534,10 @@ class AsyncioEndpoint(BaseEndpoint):
 
         # block until we've received the other endpoint's subscriptions to
         # ensure that it is safe to broadcast
-        await self.wait_until_connected_to(config.name)
+        await asyncio.wait_for(
+            self.wait_until_connected_to(config.name),
+            timeout=constants.ENDPOINT_CONNECT_TIMEOUT,
+        )
 
     #
     # Event API
