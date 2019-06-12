@@ -43,13 +43,16 @@ extras_require['dev'].extend(extras_require['test'])
 extras_require['dev'].extend(extras_require['lint'])
 extras_require['dev'].extend(extras_require['doc'])
 
+with open('./README.md') as readme:
+    long_description = readme.read()
 
 setup(
     name='lahja',
     # *IMPORTANT*: Don't manually change the version here. Use `make bump`, as described in readme
     version='0.14.0',
     description="Generic event bus for inter process asyncio communication",
-    long_description_markdown_filename='README.md',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author='The Lahja developers',
     author_email='christoph.burgdorf@gmail.com',
     url='https://github.com/ethereum/lahja',
@@ -57,7 +60,6 @@ setup(
     install_requires=[
         "async-generator>=1.10,<2",
     ],
-    setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
     extras_require=extras_require,
     py_modules=['lahja'],
