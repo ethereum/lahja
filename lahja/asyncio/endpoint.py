@@ -37,6 +37,8 @@ from lahja.base import (
     BaseEndpoint,
     BaseRemoteEndpoint,
     ConnectionAPI,
+    EndpointAPI,
+    RemoteEndpointAPI,
     TResponse,
     TStreamEvent,
     TSubscribeEvent,
@@ -83,7 +85,7 @@ class AsyncioConnection(ConnectionAPI):
         self._drain_lock = asyncio.Lock()
 
     @classmethod
-    async def connect_to(cls, path: Path) -> "ConnectionAPI":
+    async def connect_to(cls, path: Path) -> ConnectionAPI:
         reader, writer = await asyncio.open_unix_connection(str(path))
         return cls(reader, writer)
 
@@ -149,7 +151,19 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
         self._stopped = asyncio.Event()  # type: ignore
         self._ready = asyncio.Event()  # type: ignore
 
-    async def start(self) -> None:
+    #
+    # Running API
+    #
+    @asynccontextmanager  # type: ignore
+    async def run(self) -> AsyncIterator[RemoteEndpointAPI]:
+        await self._start()
+
+        try:
+            yield self
+        finally:
+            await self.stop()
+
+    async def _start(self) -> None:
         self._task = asyncio.ensure_future(self._run())
         await self.wait_started()
 
@@ -280,7 +294,7 @@ class AsyncioEndpoint(BaseEndpoint):
     # Running API
     #
     @asynccontextmanager  # type: ignore
-    async def run(self) -> AsyncIterator["AsyncioEndpoint"]:
+    async def run(self) -> AsyncIterator[EndpointAPI]:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
 
