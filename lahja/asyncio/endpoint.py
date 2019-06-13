@@ -153,7 +153,7 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
     #
     # Running API
     #
-    @asynccontextmanager  # type: ignore
+    @asynccontextmanager
     async def run(self) -> AsyncIterator[RemoteEndpointAPI]:
         await self._start()
 
@@ -284,7 +284,7 @@ class AsyncioEndpoint(BaseEndpoint):
     #
     # Running API
     #
-    @asynccontextmanager  # type: ignore
+    @asynccontextmanager
     async def run(self) -> AsyncIterator[EndpointAPI]:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
@@ -421,7 +421,7 @@ class AsyncioEndpoint(BaseEndpoint):
     # Server API
     #
     @classmethod
-    @asynccontextmanager  # type: ignore
+    @asynccontextmanager
     async def serve(cls, config: ConnectionConfig) -> AsyncIterator["AsyncioEndpoint"]:
         endpoint = cls(config.name)
         async with endpoint.run():
