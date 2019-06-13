@@ -97,12 +97,29 @@ class RemoteEndpointAPI(ABC):
     def is_stopped(self) -> bool:
         ...
 
+    #
+    # Running API
+    #
     @abstractmethod
-    async def start(self) -> None:
+    def run(self) -> AsyncContextManager["RemoteEndpointAPI"]:
+        """
+        Context manager API for running endpoints.
+
+        .. code-block::
+
+            async with endpoint.run() as endpoint:
+                ... # endpoint running within context
+            ... # endpoint stopped after
+
+        test
+        """
         ...
 
     @abstractmethod
     async def stop(self) -> None:
+        """
+        Manually stop the remote endpoint.
+        """
         ...
 
     #
@@ -324,7 +341,7 @@ class EndpointAPI(ABC):
     # Running API
     #
     @abstractmethod
-    def run(self) -> AsyncContextManager["BaseEndpoint"]:
+    def run(self) -> AsyncContextManager["EndpointAPI"]:
         """
         Context manager API for running endpoints.
 
@@ -343,13 +360,13 @@ class EndpointAPI(ABC):
     #
     @classmethod
     @abstractmethod
-    def serve(cls, config: ConnectionConfig) -> AsyncContextManager["BaseEndpoint"]:
+    def serve(cls, config: ConnectionConfig) -> AsyncContextManager["EndpointAPI"]:
         """
         Context manager API for running and endpoint server.
 
         .. code-block::
 
-            async with endpoint.serve():
+            async with EndpointClass.serve(config):
                 ... # server running within context
             ... # server stopped
 
@@ -363,6 +380,13 @@ class EndpointAPI(ABC):
     async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
         """
         Establish a new connection to an endpoint.
+        """
+        ...
+
+    @abstractmethod
+    async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
+        """
+        Variadic argument version of `connect_to_endpoint`
         """
         ...
 
@@ -762,17 +786,14 @@ class BaseEndpoint(EndpointAPI):
     # Remote Endpoint Management
     #
     async def _run_remote_endpoint(self, remote: RemoteEndpointAPI) -> None:
-        await remote.start()
-
-        try:
+        async with remote.run():
             await remote.wait_ready()
             await self._add_connection(remote)
             await remote.wait_until_subscription_initialized()
             await remote.wait_stopped()
-        finally:
-            await remote.stop()
-            if remote in self._connections:
-                await self._remove_connection(remote)
+
+        if remote in self._connections:
+            await self._remove_connection(remote)
 
     async def _add_connection(self, remote: RemoteEndpointAPI) -> None:
         if remote in self._connections:

@@ -8,7 +8,7 @@ import time
 from typing import Any, AsyncGenerator, List, NamedTuple, Optional, Tuple  # noqa: F401
 
 from lahja import BroadcastConfig, ConnectionConfig
-from lahja.base import BaseEndpoint
+from lahja.base import EndpointAPI
 from lahja.tools.benchmark.backends import BaseBackend
 from lahja.tools.benchmark.constants import (
     DRIVER_ENDPOINT,
@@ -84,13 +84,13 @@ class BaseDriverProcess(ABC):
 
     @staticmethod
     @abstractmethod
-    async def do_driver(event_bus: BaseEndpoint, config: DriverProcessConfig) -> None:
+    async def do_driver(event_bus: EndpointAPI, config: DriverProcessConfig) -> None:
         ...
 
 
 class BroadcastDriver(BaseDriverProcess):
     @staticmethod
-    async def do_driver(event_bus: BaseEndpoint, config: DriverProcessConfig) -> None:
+    async def do_driver(event_bus: EndpointAPI, config: DriverProcessConfig) -> None:
         for consumer in config.connected_endpoints:
             await event_bus.wait_until_endpoint_subscribed_to(
                 consumer.name, PerfMeasureEvent
@@ -108,7 +108,7 @@ class BroadcastDriver(BaseDriverProcess):
 class RequestDriver(BaseDriverProcess):
     @classmethod
     async def do_driver(
-        cls, event_bus: BaseEndpoint, config: DriverProcessConfig
+        cls, event_bus: EndpointAPI, config: DriverProcessConfig
     ) -> None:
         for consumer in config.connected_endpoints:
             await event_bus.wait_until_endpoint_subscribed_to(
@@ -173,7 +173,7 @@ class BaseConsumerProcess(ABC):
     @staticmethod
     @abstractmethod
     async def do_consumer(
-        event_bus: BaseEndpoint, config: ConsumerConfig
+        event_bus: EndpointAPI, config: ConsumerConfig
     ) -> LocalStatistic:
         ...
 
@@ -181,7 +181,7 @@ class BaseConsumerProcess(ABC):
 class BroadcastConsumer(BaseConsumerProcess):
     @staticmethod
     async def do_consumer(
-        event_bus: BaseEndpoint, config: ConsumerConfig
+        event_bus: EndpointAPI, config: ConsumerConfig
     ) -> LocalStatistic:
         stats = LocalStatistic()
         events = event_bus.stream(PerfMeasureEvent, num_events=config.num_events)
@@ -193,7 +193,7 @@ class BroadcastConsumer(BaseConsumerProcess):
 class RequestConsumer(BaseConsumerProcess):
     @staticmethod
     async def do_consumer(
-        event_bus: BaseEndpoint, config: ConsumerConfig
+        event_bus: EndpointAPI, config: ConsumerConfig
     ) -> LocalStatistic:
         stats = LocalStatistic()
         events = event_bus.stream(PerfMeasureRequest, num_events=config.num_events)
