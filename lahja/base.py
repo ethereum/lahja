@@ -85,14 +85,17 @@ class RemoteEndpointAPI(ABC):
     async def wait_stopped(self) -> None:
         ...
 
+    @property
     @abstractmethod
     def is_running(self) -> bool:
         ...
 
+    @property
     @abstractmethod
     def is_ready(self) -> bool:
         ...
 
+    @property
     @abstractmethod
     def is_stopped(self) -> bool:
         ...
