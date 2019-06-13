@@ -15,7 +15,7 @@ async def test_base_wait_until_any_endpoint_subscriptions_changed():
     config = ConnectionConfig.from_name(generate_unique_name())
     async with AsyncioEndpoint.serve(config) as server:
         async with AsyncioEndpoint("client").run() as client:
-            await client.connect_to_endpoint(config)
+            await client.connect_to_endpoints(config)
             assert client.is_connected_to(config.name)
 
             server.subscribe(SubscriptionEvent, lambda e: None)

@@ -176,9 +176,9 @@ async def client_with_three_connections(ipc_base_path):
         async with AsyncioEndpoint.serve(config_b) as server_b:
             async with AsyncioEndpoint.serve(config_c) as server_c:
                 async with AsyncioEndpoint("client").run() as client:
-                    await client.connect_to_endpoint(config_a)
-                    await client.connect_to_endpoint(config_b)
-                    await client.connect_to_endpoint(config_c)
+                    await client.connect_to_endpoints(config_a)
+                    await client.connect_to_endpoints(config_b)
+                    await client.connect_to_endpoints(config_c)
 
                     yield client, server_a, server_b, server_c
 

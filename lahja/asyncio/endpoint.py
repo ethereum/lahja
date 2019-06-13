@@ -518,13 +518,10 @@ class AsyncioEndpoint(BaseEndpoint):
         )
 
     async def _await_connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
+        self._throw_if_already_connected(endpoint)
         await wait_for_path(endpoint.path)
-        await self.connect_to_endpoint(endpoint)
 
-    async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
-        self._throw_if_already_connected(config)
-
-        conn = await AsyncioConnection.connect_to(config.path)
+        conn = await AsyncioConnection.connect_to(endpoint.path)
         remote = AsyncioRemoteEndpoint(
             local_name=self.name,
             conn=conn,
@@ -541,7 +538,7 @@ class AsyncioEndpoint(BaseEndpoint):
         # block until we've received the other endpoint's subscriptions to
         # ensure that it is safe to broadcast
         await asyncio.wait_for(
-            self.wait_until_connected_to(config.name),
+            self.wait_until_connected_to(endpoint.name),
             timeout=constants.ENDPOINT_CONNECT_TIMEOUT,
         )
 

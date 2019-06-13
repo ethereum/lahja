@@ -35,7 +35,7 @@ async def endpoint_server(server_config):
 @pytest.fixture
 async def endpoint_client(server_config, endpoint_server, unique_name):
     async with AsyncioEndpoint(f"client-{unique_name}").run() as client:
-        await client.connect_to_endpoint(server_config)
+        await client.connect_to_endpoints(server_config)
         await endpoint_server.wait_until_connected_to(client.name)
         yield client
 
@@ -55,6 +55,6 @@ async def server_with_two_clients(
     unique_name, server_config, endpoint_server, endpoint_client
 ):
     async with AsyncioEndpoint(f"3rd-wheel-{unique_name}").run() as client_b:
-        await client_b.connect_to_endpoint(server_config)
+        await client_b.connect_to_endpoints(server_config)
         await endpoint_server.wait_until_connected_to(client_b.name)
         yield endpoint_server, endpoint_client, client_b

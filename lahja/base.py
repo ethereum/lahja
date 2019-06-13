@@ -382,17 +382,11 @@ class EndpointAPI(ABC):
     #
     # Connection API
     #
-    @abstractmethod
-    async def connect_to_endpoint(self, config: ConnectionConfig) -> None:
-        """
-        Establish a new connection to an endpoint.
-        """
-        ...
 
     @abstractmethod
     async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
         """
-        Variadic argument version of `connect_to_endpoint`
+        Establish connections to the given endpoints.
         """
         ...
 
@@ -617,14 +611,6 @@ class BaseEndpoint(EndpointAPI):
     #
     # Connection API
     #
-    async def connect_to_endpoints(self, *endpoints: ConnectionConfig) -> None:
-        """
-        Naive asynchronous implementation.  Subclasses should consider
-        connecting concurrently.
-        """
-        for config in endpoints:
-            await self.connect_to_endpoint(config)
-
     def is_connected_to(self, endpoint_name: str) -> bool:
         if endpoint_name == self.name:
             return True
