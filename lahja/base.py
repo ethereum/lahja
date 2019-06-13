@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
+import pickle
 from typing import (  # noqa: F401
     Any,
     AsyncContextManager,
@@ -20,6 +21,7 @@ from typing import (  # noqa: F401
     cast,
 )
 
+from ._snappy import check_has_snappy_support
 from .common import (
     BaseEvent,
     BaseRequestResponseEvent,
@@ -33,7 +35,7 @@ from .common import (
     SubscriptionsAck,
     SubscriptionsUpdated,
 )
-from .exceptions import RemoteDisconnected
+from .exceptions import ConnectionAttemptRejected, RemoteDisconnected
 from .typing import ConditionAPI, EventAPI, LockAPI
 
 TResponse = TypeVar("TResponse", bound=BaseEvent)
@@ -319,7 +321,7 @@ class EndpointAPI(ABC):
         ...
 
     #
-    # Running and Server API
+    # Running API
     #
     @abstractmethod
     def run(self) -> AsyncContextManager["BaseEndpoint"]:
@@ -336,6 +338,9 @@ class EndpointAPI(ABC):
         """
         ...
 
+    #
+    # Serving API
+    #
     @classmethod
     @abstractmethod
     def serve(cls, config: ConnectionConfig) -> AsyncContextManager["BaseEndpoint"]:
@@ -477,6 +482,13 @@ class EndpointAPI(ABC):
     # Subscription API
     #
     @abstractmethod
+    def get_subscribed_events(self) -> Set[Type[BaseEvent]]:
+        """
+        Return the set of event types this endpoint subscribes to.
+        """
+        ...
+
+    @abstractmethod
     async def wait_until_endpoint_subscriptions_change(self) -> None:
         """
         Block until any subscription change occurs on any remote endpoint or
@@ -538,10 +550,6 @@ class EndpointAPI(ABC):
         Block until all currently connected remote endpoints are subscribed to the specified
         event type from this endpoint.
         """
-        ...
-
-    @abstractmethod
-    def get_subscribed_events(self) -> Set[Type[BaseEvent]]:
         ...
 
 
@@ -724,3 +732,68 @@ class BaseEndpoint(EndpointAPI):
                 ):
                     return
                 await self._remote_subscriptions_changed.wait()
+
+    #
+    # Compression
+    #
+
+    # This property gets assigned during class creation.  This should be ok
+    # since snappy support is defined as the module being importable and that
+    # should not change during the lifecycle of the python process.
+    has_snappy_support = check_has_snappy_support()
+
+    def _compress_event(self, event: BaseEvent) -> Union[BaseEvent, bytes]:
+        if self.has_snappy_support:
+            import snappy
+
+            return cast(bytes, snappy.compress(pickle.dumps(event)))
+        else:
+            return event
+
+    def _decompress_event(self, data: Union[BaseEvent, bytes]) -> BaseEvent:
+        if isinstance(data, BaseEvent):
+            return data
+        else:
+            import snappy
+
+            return cast(BaseEvent, pickle.loads(snappy.decompress(data)))
+
+    #
+    # Remote Endpoint Management
+    #
+    async def _run_remote_endpoint(self, remote: RemoteEndpointAPI) -> None:
+        await remote.start()
+
+        try:
+            await remote.wait_ready()
+            await self._add_connection(remote)
+            await remote.wait_until_subscription_initialized()
+            await remote.wait_stopped()
+        finally:
+            await remote.stop()
+            if remote in self._connections:
+                await self._remove_connection(remote)
+
+    async def _add_connection(self, remote: RemoteEndpointAPI) -> None:
+        if remote in self._connections:
+            raise ConnectionAttemptRejected("Remote is already tracked")
+        elif self.is_connected_to(remote.name):
+            raise ConnectionAttemptRejected(
+                f"Already connected to remote with name {remote.name}"
+            )
+
+        async with self._remote_connections_changed:
+            # then add them to our set of connections and signal that both
+            # the remote connections and subscriptions have been updated.
+            await remote.notify_subscriptions_updated(self.get_subscribed_events())
+            self._connections.add(remote)
+            self._remote_connections_changed.notify_all()
+        async with self._remote_subscriptions_changed:
+            self._remote_subscriptions_changed.notify_all()
+
+    async def _remove_connection(self, remote: RemoteEndpointAPI) -> None:
+        async with self._remote_connections_changed:
+            self._connections.remove(remote)
+            self._remote_connections_changed.notify_all()
+        async with self._remote_subscriptions_changed:
+            self._remote_subscriptions_changed.notify_all()
