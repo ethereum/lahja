@@ -517,14 +517,6 @@ class AsyncioEndpoint(BaseEndpoint):
             *(self._await_connect_to_endpoint(endpoint) for endpoint in endpoints)
         )
 
-    def connect_to_endpoints_nowait(self, *endpoints: ConnectionConfig) -> None:
-        """
-        Connect to the given endpoints as soon as they become available but do not block.
-        """
-        self._throw_if_already_connected(*endpoints)
-        for endpoint in endpoints:
-            asyncio.ensure_future(self._await_connect_to_endpoint(endpoint))
-
     async def _await_connect_to_endpoint(self, endpoint: ConnectionConfig) -> None:
         await wait_for_path(endpoint.path)
         await self.connect_to_endpoint(endpoint)
