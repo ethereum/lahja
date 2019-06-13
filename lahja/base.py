@@ -10,6 +10,7 @@ from typing import (  # noqa: F401
     Callable,
     Dict,
     Iterable,
+    Iterator,
     List,
     NamedTuple,
     Optional,
@@ -31,12 +32,13 @@ from .common import (
     Hello,
     Message,
     Msg,
+    RequestIDGenerator,
     Subscription,
     SubscriptionsAck,
     SubscriptionsUpdated,
 )
 from .exceptions import ConnectionAttemptRejected, RemoteDisconnected
-from .typing import ConditionAPI, EventAPI, LockAPI
+from .typing import ConditionAPI, EventAPI, LockAPI, RequestID
 
 TResponse = TypeVar("TResponse", bound=BaseEvent)
 TWaitForEvent = TypeVar("TWaitForEvent", bound=BaseEvent)
@@ -587,10 +589,19 @@ class BaseEndpoint(EndpointAPI):
 
     _connections: Set[RemoteEndpointAPI]
 
+    _get_request_id: Iterator[RequestID]
+
     logger = logging.getLogger("lahja.endpoint.Endpoint")
 
     def __init__(self, name: str) -> None:
         self.name = name
+
+        try:
+            self._get_request_id = RequestIDGenerator(name.encode("ascii") + b":")
+        except UnicodeDecodeError:
+            raise Exception(
+                f"TODO: Invalid endpoint name: '{name}'. Must be ASCII encodable string"
+            )
 
         # storage containers for inbound and outbound connections to other
         # endpoints
