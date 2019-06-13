@@ -4,7 +4,7 @@ import os
 import tempfile
 
 from lahja import ConnectionConfig
-from lahja.tools.benchmark.backends import AsyncioBackend, BaseBackend
+from lahja.tools.benchmark.backends import AsyncioBackend, BaseBackend, TrioBackend
 from lahja.tools.benchmark.constants import (
     DRIVER_ENDPOINT,
     REPORTER_ENDPOINT,
@@ -138,6 +138,8 @@ if __name__ == "__main__":
     for backend_str in args.backend or ["asyncio"]:
         if backend_str == "asyncio":
             backend = AsyncioBackend()
+        elif backend_str == "trio":
+            backend = TrioBackend()
         else:
             raise Exception(f"Unrecognized backend: {args.backend}")
 

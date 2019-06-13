@@ -241,11 +241,15 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
     async def _process_incoming_messages(self) -> None:
         self._running.set()
 
-        # Send the hello message
-        await self.send_message(Hello(self._local_name))
+        try:
+            # Send the hello message
+            await self.send_message(Hello(self._local_name))
+            # Wait for the other endpoint to identify itself.
+            hello = await self.conn.read_message()
+        except RemoteDisconnected:
+            self._stopped.set()
+            return
 
-        # Wait for the other endpoint to identify itself.
-        hello = await self.conn.read_message()
         if isinstance(hello, Hello):
             self._name = hello.name
             self.logger.debug(
