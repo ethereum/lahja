@@ -230,7 +230,7 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
     def is_stopped(self) -> bool:
         return self._stopped.is_set()
 
-    async def _run(self) -> None:
+    async def _process_incoming_messages(self) -> None:
         self._running.set()
 
         # Send the hello message

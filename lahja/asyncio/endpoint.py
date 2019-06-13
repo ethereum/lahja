@@ -164,7 +164,7 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
             await self.stop()
 
     async def _start(self) -> None:
-        self._task = asyncio.ensure_future(self._run())
+        self._task = asyncio.ensure_future(self._process_incoming_messages())
         await self.wait_started()
 
     async def stop(self) -> None:
