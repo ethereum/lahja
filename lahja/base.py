@@ -221,12 +221,15 @@ class BaseRemoteEndpoint(RemoteEndpointAPI):
     async def wait_stopped(self) -> None:
         await self._stopped.wait()
 
+    @property
     def is_running(self) -> bool:
-        return not self.is_stopped and self.running.is_set()
+        return not self.is_stopped and self._running.is_set()
 
+    @property
     def is_ready(self) -> bool:
         return self.is_running and self._ready.is_set()
 
+    @property
     def is_stopped(self) -> bool:
         return self._stopped.is_set()
 
