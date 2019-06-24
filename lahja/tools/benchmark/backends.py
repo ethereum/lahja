@@ -3,6 +3,7 @@ from typing import Any, Type
 
 from lahja.asyncio import AsyncioEndpoint
 from lahja.base import BaseEndpoint
+from lahja.trio import TrioEndpoint
 
 
 class BaseBackend(ABC):
@@ -40,3 +41,23 @@ class AsyncioBackend(BaseBackend):
         import asyncio
 
         await asyncio.sleep(seconds)
+
+
+class TrioBackend(BaseBackend):
+    name = "trio"
+    Endpoint = TrioEndpoint
+
+    @staticmethod
+    def run(coro: Any, *args: Any) -> None:
+        # UNCOMMENT FOR DEBUGGING
+        # logger = multiprocessing.log_to_stderr()
+        # logger.setLevel(logging.INFO)
+        import trio
+
+        trio.run(coro, *args)
+
+    @staticmethod
+    async def sleep(seconds: float) -> None:
+        import trio
+
+        await trio.sleep(seconds)

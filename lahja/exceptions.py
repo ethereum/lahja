@@ -12,6 +12,16 @@ class BindError(LahjaError):
     """
 
 
+class LifecycleError(LahjaError):
+    """
+    Raised when attempting to violate the lifecycle of an endpoint such as
+    starting an already started endpoint or starting an endpoint that has
+    already stopped.
+    """
+
+    pass
+
+
 class ConnectionAttemptRejected(LahjaError):
     """
     Raised when an attempt was made to connect to an endpoint that is already connected.

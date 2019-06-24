@@ -51,7 +51,6 @@ from lahja.common import (
     ConnectionConfig,
     Message,
     Msg,
-    RequestIDGenerator,
     Subscription,
     should_endpoint_receive_item,
 )
@@ -154,7 +153,7 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
     #
     # Running API
     #
-    @asynccontextmanager  # type: ignore
+    @asynccontextmanager
     async def run(self) -> AsyncIterator[RemoteEndpointAPI]:
         await self._start()
 
@@ -199,19 +198,11 @@ class AsyncioEndpoint(BaseEndpoint):
     _sync_handler: DefaultDict[Type[BaseEvent], List[SubscriptionSyncHandler]]
 
     _loop: Optional[asyncio.AbstractEventLoop] = None
-    _get_request_id: Iterator[RequestID]
 
     _subscriptions_changed: asyncio.Event
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
-
-        try:
-            self._get_request_id = RequestIDGenerator(name.encode("ascii") + b":")
-        except UnicodeDecodeError:
-            raise Exception(
-                f"TODO: Invalid endpoint name: '{name}'. Must be ASCII encodable string"
-            )
 
         # Signal when a new remote connection is established
         self._remote_connections_changed = asyncio.Condition()  # type: ignore
@@ -293,7 +284,7 @@ class AsyncioEndpoint(BaseEndpoint):
     #
     # Running API
     #
-    @asynccontextmanager  # type: ignore
+    @asynccontextmanager
     async def run(self) -> AsyncIterator[EndpointAPI]:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
@@ -430,7 +421,7 @@ class AsyncioEndpoint(BaseEndpoint):
     # Server API
     #
     @classmethod
-    @asynccontextmanager  # type: ignore
+    @asynccontextmanager
     async def serve(cls, config: ConnectionConfig) -> AsyncIterator["AsyncioEndpoint"]:
         endpoint = cls(config.name)
         async with endpoint.run():
