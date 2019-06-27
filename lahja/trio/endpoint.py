@@ -196,7 +196,7 @@ WireBroadcastChannelPair = Tuple[
 ]
 
 OutboundBroadcast = Tuple[
-    Optional[Future[None]], BaseEvent, Optional[BroadcastConfig], Optional[RequestID]
+    Optional[trio.Event], BaseEvent, Optional[BroadcastConfig], Optional[RequestID]
 ]
 OutboundBroadcastChannelPair = Tuple[
     trio.abc.SendChannel[OutboundBroadcast], trio.abc.ReceiveChannel[OutboundBroadcast]
@@ -402,7 +402,7 @@ class TrioEndpoint(BaseEndpoint):
         Consume events that have been received from a remote endpoint and
         process them.
         """
-        async for (fut, item, config, id) in channel:
+        async for (done, item, config, id) in channel:
             item.bind(self, id)
 
             is_eligible = should_endpoint_receive_item(
@@ -440,8 +440,8 @@ class TrioEndpoint(BaseEndpoint):
             # This Future is used to signal back to the `broadcast` method that
             # this event has been broadcast and it is safe to return from the
             # method.
-            if fut is not None:
-                fut.set_result(None)
+            if done is not None:
+                done.set()
 
     async def _process_inbound_messages(
         self, channel: trio.abc.ReceiveChannel[Broadcast]
@@ -676,9 +676,9 @@ class TrioEndpoint(BaseEndpoint):
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
-        fut: Future[None] = Future()
-        await self._outbound_send_channel.send((fut, item, config, None))
-        await fut
+        done = trio.Event()
+        await self._outbound_send_channel.send((done, item, config, None))
+        await done.wait()
 
     def broadcast_nowait(
         self, item: BaseEvent, config: Optional[BroadcastConfig] = None
