@@ -462,7 +462,10 @@ class AsyncioEndpoint(BaseEndpoint):
         for task in self._server_tasks:
             task.cancel()
 
-        self.ipc_path.unlink()
+        try:
+            self.ipc_path.unlink()
+        except FileNotFoundError:
+            pass
         self.logger.debug("Endpoint[%s]: server stopped", self.name)
 
     async def _accept_conn(self, reader: StreamReader, writer: StreamWriter) -> None:
