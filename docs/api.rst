@@ -4,13 +4,13 @@ API Docs
 Base Endpoint API
 -----------------
 
-.. automodule:: lahja.base.EndpointAPI
+.. autoclass:: lahja.base.EndpointAPI
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-.. automodule:: lahja.base.BaseEndpoint
+.. autoclass:: lahja.base.BaseEndpoint
     :members:
     :undoc-members:
     :show-inheritance:
@@ -19,7 +19,7 @@ Base Endpoint API
 AsyncioEndpoint
 ---------------
 
-.. automodule:: lahja.endpoint.asyncio.endpoint
+.. autoclass:: lahja.asyncio.endpoint.AsyncioEndpoint
     :members:
     :undoc-members:
     :show-inheritance:

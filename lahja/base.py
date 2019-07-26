@@ -110,7 +110,7 @@ class RemoteEndpointAPI(ABC):
         """
         Context manager API for running endpoints.
 
-        .. code-block::
+        .. code-block:: python
 
             async with endpoint.run() as endpoint:
                 ... # endpoint running within context
@@ -357,13 +357,12 @@ class EndpointAPI(ABC):
         """
         Context manager API for running endpoints.
 
-        .. code-block::
+        .. code-block:: python
 
             async with endpoint.run() as endpoint:
                 ... # endpoint running within context
             ... # endpoint stopped after
 
-        test
         """
         ...
 
@@ -376,7 +375,7 @@ class EndpointAPI(ABC):
         """
         Context manager API for running and endpoint server.
 
-        .. code-block::
+        .. code-block:: python
 
             async with EndpointClass.serve(config):
                 ... # server running within context
