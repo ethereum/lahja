@@ -1,0 +1,2 @@
+Use the proper ``ConnectionAttemptRejected`` class in a code path that used
+a generic ``Exception`` before.

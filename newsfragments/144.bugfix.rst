@@ -1,0 +1,2 @@
+If for some reason the IPC file is missing during server shutdown,
+suppress the `FileNotFoundError` that is raised when we try to remove it.
