@@ -1,3 +1,5 @@
+import multiprocessing
+
 from lahja import BaseEvent, BaseRequestResponseEvent, ConnectionConfig
 from lahja.tools import drivers as d
 
@@ -12,10 +14,10 @@ class Request(BaseRequestResponseEvent[Response]):
         return Response
 
 
-def test_request_response(engine, ipc_base_path):
+def test_request_response(runner, ipc_base_path):
     server_config = ConnectionConfig.from_name("server", base_path=ipc_base_path)
 
-    received = engine.Event()
+    received = multiprocessing.Event()
 
     server = d.driver(
         d.serve_endpoint(server_config),
@@ -29,5 +31,5 @@ def test_request_response(engine, ipc_base_path):
         d.request(Request(), on_response=lambda endpoint, event: received.set()),
     )
 
-    engine.run(server, client)
+    runner(server, client)
     assert received.is_set()

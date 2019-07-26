@@ -1,18 +1,24 @@
 import pytest
 
-from lahja.tools.engine import AsyncioEngine, IsolatedProcessEngine, TrioEngine
+from lahja.tools.runner import (
+    AsyncioRunner,
+    TrioRunner,
+    IsolatedHeterogenousRunner,
+    IsolatedHomogenousRunner,
+)
 
 
-@pytest.fixture(params=(AsyncioEngine, TrioEngine))
-def base_engine(request):
-    return request.param()
-
-
-@pytest.fixture(params=(True, False))
-def engine(request, base_engine):
-    if request.param is False:
-        return base_engine
-    elif request.param is True:
-        return IsolatedProcessEngine(base_engine)
+@pytest.fixture(params=('trio-runner', 'asyncio-runner', 'trio-isolated', 'asyncio-isolated', 'mixed-isolated'))
+def runner(request):
+    if request.param == 'trio-runner':
+        return TrioRunner()
+    elif request.param == 'asyncio-runner':
+        return AsyncioRunner()
+    elif request.param == 'trio-isolated':
+        return IsolatedHomogenousRunner(TrioRunner())
+    elif request.param == 'asyncio-isolated':
+        return IsolatedHomogenousRunner(TrioRunner())
+    elif request.param == 'mixed-isolated':
+        return IsolatedHeterogenousRunner(TrioRunner(), AsyncioRunner())
     else:
-        raise Exception("WHAT?!")
+        raise ValueError(f"Unknown param: {request.param}")

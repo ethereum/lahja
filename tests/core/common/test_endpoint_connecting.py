@@ -3,7 +3,7 @@ from lahja.exceptions import ConnectionAttemptRejected
 from lahja.tools import drivers as d
 
 
-def test_connecting_to_server_endpoint(ipc_base_path, engine):
+def test_connecting_to_server_endpoint(ipc_base_path, runner):
     server_config = ConnectionConfig.from_name("server", base_path=ipc_base_path)
 
     server_done, client_done = d.checkpoint('done')
@@ -20,10 +20,10 @@ def test_connecting_to_server_endpoint(ipc_base_path, engine):
         client_done,
     )
 
-    engine.run(server, client)
+    runner(server, client)
 
 
-def test_duplicate_connection_throws_exception(ipc_base_path, engine):
+def test_duplicate_connection_throws_exception(ipc_base_path, runner):
     server_config = ConnectionConfig.from_name("server", base_path=ipc_base_path)
     server_done, client_done = d.checkpoint('done')
 
@@ -40,10 +40,10 @@ def test_duplicate_connection_throws_exception(ipc_base_path, engine):
         client_done,
     )
 
-    engine.run(server, client)
+    runner(server, client)
 
 
-def test_server_establishes_reverse_connection(ipc_base_path, engine):
+def test_server_establishes_reverse_connection(ipc_base_path, runner):
     server_config = ConnectionConfig.from_name("server", base_path=ipc_base_path)
     server_done, client_done = d.checkpoint('done')
 
@@ -57,4 +57,4 @@ def test_server_establishes_reverse_connection(ipc_base_path, engine):
         client_done,
     )
 
-    engine.run(server, client)
+    runner(server, client)
