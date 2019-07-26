@@ -19,6 +19,7 @@ develop-eggs
 lib
 lib64
 venv*
+pip-wheel-metadata
 
 # Installer logs
 pip-log.txt
