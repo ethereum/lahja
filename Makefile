@@ -37,14 +37,20 @@ test-all:
 
 build-docs:
 	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	$(MAKE) -C docs doctest
+	cd docs/; sphinx-build -W -T -E . _build/html
+
+doctest:
+	cd docs/; sphinx-build -T -b doctest . _build/doctest
 
 docs: build-docs
 	open docs/_build/html/index.html
 
 linux-docs: build-docs
 	xdg-open docs/_build/html/index.html
+
+validate-docs: build-docs doctest
+	./newsfragments/validate_files.py
+	towncrier --draft --version preview
 
 release: clean
 	CURRENT_SIGN_SETTING=$(git config commit.gpgSign)

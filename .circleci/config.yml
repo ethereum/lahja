@@ -51,12 +51,12 @@ jobs:
       - image: circleci/python:3.6
         environment:
           TOXENV: snappy-benchmark
-  doctest:
+  docs:
     <<: *common
     docker:
       - image: circleci/python:3.6
         environment:
-          TOXENV: doctest
+          TOXENV: docs
   lint:
     <<: *common
     docker:
@@ -129,7 +129,7 @@ workflows:
     jobs:
       - benchmark
       - snappy-benchmark
-      - doctest
+      - docs
       - lint
       - py36-core-asyncio
       - py36-core-trio
