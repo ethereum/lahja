@@ -171,6 +171,10 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
             return
         self._stopped.set()
         self._task.cancel()
+        try:
+            await self._task
+        except asyncio.CancelledError:
+            pass
 
 
 TFunc = TypeVar("TFunc", bound=Callable[..., Any])
@@ -294,7 +298,7 @@ class AsyncioEndpoint(BaseEndpoint):
         try:
             yield self
         finally:
-            self._stop()
+            await self._stop()
 
     @check_event_loop
     async def _start(self) -> None:
@@ -313,19 +317,23 @@ class AsyncioEndpoint(BaseEndpoint):
         await self._receiving_loop_running.wait()
         self.logger.debug("Endpoint[%s]: running", self.name)
 
-    def _stop(self) -> None:
+    async def _stop(self) -> None:
         """
         Stop the :class:`~lahja.endpoint.asyncio.AsyncioEndpoint` from receiving further events.
         """
         if not self.is_running:
             return
 
-        self._stop_server()
+        await self._stop_server()
 
         self._running = False
 
-        for task in self._endpoint_tasks:
+        for task in tuple(self._endpoint_tasks):
             task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
         self.logger.debug("Endpoint[%s]: stopped", self.name)
 
@@ -429,7 +437,7 @@ class AsyncioEndpoint(BaseEndpoint):
             try:
                 yield endpoint
             finally:
-                endpoint._stop_server()
+                await endpoint._stop_server()
 
     @check_event_loop
     async def _start_server(self, ipc_path: Path) -> None:
@@ -452,15 +460,19 @@ class AsyncioEndpoint(BaseEndpoint):
         )
         self.logger.debug("Endpoint[%s]: server started", self.name)
 
-    def _stop_server(self) -> None:
+    async def _stop_server(self) -> None:
         if not self.is_serving:
             return
         self._serving = False
 
         self._server.close()
 
-        for task in self._server_tasks:
+        for task in tuple(self._server_tasks):
             task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
         try:
             self.ipc_path.unlink()
