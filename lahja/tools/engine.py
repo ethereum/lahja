@@ -22,6 +22,9 @@ class EngineAPI(ABC):
     ) -> None:
         ...
 
+    async def sleep(self, seconds: int) -> None:
+        ...
+
 
 class AsyncioEngine(EngineAPI):
     endpoint_class = AsyncioEndpoint
@@ -39,7 +42,13 @@ class AsyncioEngine(EngineAPI):
     async def run_with_timeout(
         self, coro: Callable[..., Awaitable[Any]], *args: Any, timeout: int
     ) -> None:
-        await asyncio.wait_for(coro(*args), timeout=timeout)
+        try:
+            await asyncio.wait_for(coro(*args), timeout=timeout)
+        except asyncio.TimeoutError as err:
+            raise TimeoutError from err
+
+    async def sleep(self, seconds: int) -> None:
+        await asyncio.sleep(seconds)
 
 
 class TrioEngine(EngineAPI):
@@ -59,8 +68,14 @@ class TrioEngine(EngineAPI):
     async def run_with_timeout(
         self, coro: Callable[..., Awaitable[Any]], *args: Any, timeout: int
     ) -> None:
-        with trio.fail_after(timeout):
-            await coro(*args)
+        try:
+            with trio.fail_after(timeout):
+                await coro(*args)
+        except trio.TooSlowError as err:
+            raise TimeoutError from err
+
+    async def sleep(self, seconds: int) -> None:
+        await trio.sleep(seconds)
 
 
 class IsolatedProcessEngine(EngineAPI):
@@ -92,4 +107,7 @@ class IsolatedProcessEngine(EngineAPI):
     async def run_with_timeout(
         self, coro: Callable[..., Awaitable[Any]], *args: Any, timeout: int
     ) -> None:
+        raise NotImplementedError
+
+    async def sleep(self, seconds: int) -> None:
         raise NotImplementedError

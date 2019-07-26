@@ -27,22 +27,6 @@ class Request(BaseRequestResponseEvent[Response]):
 
 
 @pytest.mark.asyncio
-async def test_request_response(endpoint_pair, event_loop):
-    alice, bob = endpoint_pair
-
-    async def do_serve_response():
-        req = await alice.wait_for(Request)
-        await alice.broadcast(Response(req.value), req.broadcast_config())
-
-    asyncio.ensure_future(do_serve_response())
-    await bob.wait_until_any_endpoint_subscribed_to(Request)
-
-    response = await bob.request(Request("test-request"))
-    assert isinstance(response, Response)
-    assert response.value == "test-request"
-
-
-@pytest.mark.asyncio
 async def test_request_can_get_cancelled(endpoint_pair):
     alice, bob = endpoint_pair
 

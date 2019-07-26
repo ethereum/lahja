@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import logging
+import multiprocessing
 from typing import (
     Any,
     AsyncContextManager,
@@ -12,7 +13,13 @@ from typing import (
     Union,
 )
 
-from lahja import BroadcastConfig, ConnectionConfig, BaseEvent, EndpointAPI
+from lahja import (
+    BaseRequestResponseEvent,
+    BroadcastConfig,
+    ConnectionConfig,
+    BaseEvent,
+    EndpointAPI,
+)
 from lahja.exceptions import LahjaError
 
 from lahja.tools.engine import EngineAPI
@@ -45,8 +52,8 @@ class SyncAction:
         self._fn = fn
         self._kwargs = kwargs
 
-    def __call__(self, endpoint: EndpointAPI) -> None:
-        self._fn(endpoint, **self._kwargs)
+    def __call__(self, engine: EngineAPI, endpoint: EndpointAPI) -> None:
+        self._fn(engine, endpoint, **self._kwargs)
 
 
 class AsyncAction:
@@ -57,8 +64,8 @@ class AsyncAction:
         self._coro = coro
         self._kwargs = kwargs
 
-    async def __call__(self, endpoint: EndpointAPI) -> None:
-        await self._coro(endpoint, **self._kwargs)
+    async def __call__(self, engine: EngineAPI, endpoint: EndpointAPI) -> None:
+        await self._coro(engine, endpoint, **self._kwargs)
 
 
 Action = Union[SyncAction, AsyncAction]
@@ -82,9 +89,14 @@ async def drive(engine: EngineAPI,
         for idx, action in enumerate(actions):
             logger.debug('RUNNING ACTION[%d]: %s', idx, action)
             if isinstance(action, AsyncAction):
-                await engine.run_with_timeout(action, endpoint, timeout=action_timeout)
+                try:
+                    await engine.run_with_timeout(action, engine, endpoint, timeout=action_timeout)
+                except TimeoutError as err:
+                    raise TimeoutError(
+                        f"[{endpoint}] Timeout running action #{idx}:{action}"
+                    ) from err
             elif isinstance(action, SyncAction):
-                action(endpoint)
+                action(engine, endpoint)
             else:
                 raise TypeError(f"Unsupported action: {action}")
 
@@ -120,9 +132,33 @@ def run_endpoint(name) -> Initializer:
 
 
 #
+# Serve request
+#
+GetResponseFn = Callable[[EndpointAPI, BaseRequestResponseEvent], BaseEvent]
+
+
+async def _serve_request(engine: EngineAPI,
+                         endpoint: EndpointAPI,
+                         request_type: BaseRequestResponseEvent[BaseEvent],
+                         get_response: GetResponseFn) -> None:
+    logger.debug('[%s] waiting for request: %s', endpoint, request_type)
+    request = await endpoint.wait_for(request_type)
+    logger.debug('[%s] received request: %s', endpoint, request)
+    response = get_response(endpoint, request)
+    await endpoint.broadcast(response, config=request.broadcast_config())
+    logger.debug('[%s] sent response: %s', endpoint, response)
+
+
+def serve_request(request_type: BaseRequestResponseEvent[BaseEvent],
+                  get_response: GetResponseFn) -> AsyncAction:
+    return AsyncAction(_serve_request, request_type=request_type, get_response=get_response)
+
+
+#
 # EndpointAPI.wait_for
 #
-async def _wait_for(endpoint: EndpointAPI,
+async def _wait_for(engine: EngineAPI,
+                    endpoint: EndpointAPI,
                     event_type: Type[BaseEvent],
                     on_event: Optional[EventHandlerFn]) -> None:
     logger.debug('[%s].wait_for(%s)', endpoint, event_type)
@@ -140,9 +176,35 @@ def wait_for(event_type: Type[BaseEvent], on_event: EventHandlerFn = None) -> As
 
 
 #
+# EndpointAPI.request
+#
+async def _request(engine: EngineAPI,
+                   endpoint: EndpointAPI,
+                   event: BaseRequestResponseEvent[BaseEvent],
+                   config: Optional[BroadcastConfig],
+                   on_response: Optional[EventHandlerFn]) -> None:
+    logger.debug('[%s].request(%s, config=%s)', endpoint, event, config)
+    response = await endpoint.request(event, config=config)
+    logger.debug('[%s].request(%s) GOT RESPONSE: %s', endpoint, event, response)
+    if on_response is not None:
+        if asyncio.iscoroutinefunction(on_response):
+            await on_response(endpoint, response)
+        else:
+            on_response(endpoint, response)
+
+
+def request(event: BaseRequestResponseEvent[BaseEvent],
+            config: BroadcastConfig = None,
+            on_response: EventHandlerFn = None) -> AsyncAction:
+    return AsyncAction(_request, event=event, config=config, on_response=on_response)
+
+
+#
 # EndpointAPI.connect_to_endpoints
 #
-async def _connect_to_endpoints(endpoint: EndpointAPI, configs: Sequence[ConnectionConfig]):
+async def _connect_to_endpoints(engine: EngineAPI,
+                                endpoint: EndpointAPI,
+                                configs: Sequence[ConnectionConfig]):
     logger.debug(
         '[%s].connect_to_endpoints(%s)',
         endpoint,
@@ -158,7 +220,8 @@ def connect_to_endpoints(*configs: ConnectionConfig) -> AsyncAction:
 #
 # EndpointAPI.wait_until_any_endpoint_subscribed_to
 #
-async def _wait_until_any_endpoint_subscribed_to(endpoint: EndpointAPI,
+async def _wait_until_any_endpoint_subscribed_to(engine: EngineAPI,
+                                                 endpoint: EndpointAPI,
                                                  event_type: Type[BaseEvent]) -> None:
     logger.debug('[%s].wait_until_any_endpoint_subscribed_to(%s)', endpoint, event_type)
     await endpoint.wait_until_any_endpoint_subscribed_to(event_type)
@@ -171,7 +234,8 @@ def wait_until_any_endpoint_subscribed_to(event_type: Type[BaseEvent]) -> AsyncA
 #
 # EndpointAPI.wait_until_connected_to
 #
-async def _wait_until_connected_to(endpoint: EndpointAPI,
+async def _wait_until_connected_to(engine: EngineAPI,
+                                   endpoint: EndpointAPI,
                                    name: str) -> None:
     logger.debug('[%s].wait_until_connected_to(%s)', endpoint, name)
     await endpoint.wait_until_connected_to(name)
@@ -184,7 +248,10 @@ def wait_until_connected_to(name: str) -> AsyncAction:
 #
 # EndpointAPI.broadcast
 #
-async def _broadcast(endpoint: EndpointAPI, event: BaseEvent, config: Optional[BroadcastConfig]):
+async def _broadcast(engine: EngineAPI,
+                     endpoint: EndpointAPI,
+                     event: BaseEvent,
+                     config: Optional[BroadcastConfig]):
     logger.debug('[%s].broadcast(%s, config=%s)', endpoint, event, config)
     await endpoint.broadcast(event, config=config)
 
@@ -196,10 +263,11 @@ def broadcast(event: BaseEvent, config: BroadcastConfig = None) -> AsyncAction:
 #
 # EndpointAPI wait then broadcast
 #
-async def _wait_any_then_broadcast(endpoint: EndpointAPI,
+async def _wait_any_then_broadcast(engine: EngineAPI,
+                                   endpoint: EndpointAPI,
                                    event: BaseEvent, config: Optional[BroadcastConfig]):
-    await _wait_until_any_endpoint_subscribed_to(endpoint, type(event))
-    await _broadcast(endpoint, event, config)
+    await _wait_until_any_endpoint_subscribed_to(engine, endpoint, type(event))
+    await _broadcast(engine, endpoint, event, config)
 
 
 def wait_any_then_broadcast(event: BaseEvent, config: BroadcastConfig = None) -> AsyncAction:
@@ -209,7 +277,10 @@ def wait_any_then_broadcast(event: BaseEvent, config: BroadcastConfig = None) ->
 #
 # Throws
 #
-async def _throws(endpoint: EndpointAPI, action: Action, exc_type: Type[Exception]) -> None:
+async def _throws(engine: EngineAPI,
+                  endpoint: EndpointAPI,
+                  action: Action,
+                  exc_type: Type[Exception]) -> None:
     logger.debug('[%s](%s) - Expecting Error: %s', endpoint, action, exc_type)
     if not isinstance(action, (SyncAction, AsyncAction)):
         # We have to do this up here to ensure we don't end up catching in the
@@ -218,9 +289,9 @@ async def _throws(endpoint: EndpointAPI, action: Action, exc_type: Type[Exceptio
 
     try:
         if isinstance(action, AsyncAction):
-            await action(endpoint)
+            await action(engine, endpoint)
         elif isinstance(action, SyncAction):
-            action(endpoint)
+            action(engine, endpoint)
         else:
             raise Exception("Unreachable code path")
     except exc_type:
@@ -232,3 +303,26 @@ async def _throws(endpoint: EndpointAPI, action: Action, exc_type: Type[Exceptio
 
 def throws(action: Action, exc_type: [Exception]) -> Action:
     return AsyncAction(_throws, action=action, exc_type=exc_type)
+
+
+#
+# Synchronization Point
+#
+async def _checkpoint(engine: EndpointAPI,
+                      endpoint: EndpointAPI,
+                      name: str,
+                      my_event: multiprocessing.Event,
+                      other_event: multiprocessing.Event) -> None:
+    logger.debug('[%s] at checkpoint: %s', endpoint, name)
+    my_event.set()
+    while not other_event.is_set():
+        await engine.sleep(0.01)
+
+
+def checkpoint(name: str) -> AsyncAction:
+    left = multiprocessing.Event()
+    right = multiprocessing.Event()
+    return (
+        AsyncAction(_checkpoint, name=name, my_event=left, other_event=right),
+        AsyncAction(_checkpoint, name=name, my_event=right, other_event=left),
+    )
