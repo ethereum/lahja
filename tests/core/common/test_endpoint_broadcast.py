@@ -19,8 +19,7 @@ def test_endpoint_broadcast_from_client_to_server(ipc_base_path, engine):
     client = d.driver(
         d.run_endpoint("client"),
         d.connect_to_endpoints(server_config),
-        d.wait_until_any_endpoint_subscribed_to(Event),
-        d.broadcast(Event()),
+        d.wait_any_then_broadcast(Event()),
     )
 
     engine.run(server, client)
@@ -34,8 +33,7 @@ def test_endpoint_broadcast_from_server_to_client(ipc_base_path, engine):
 
     server = d.driver(
         d.serve_endpoint(server_config),
-        d.wait_until_any_endpoint_subscribed_to(Event),
-        d.broadcast(Event()),
+        d.wait_any_then_broadcast(Event()),
     )
 
     client = d.driver(
