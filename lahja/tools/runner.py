@@ -2,47 +2,40 @@ from abc import ABC, abstractmethod
 import asyncio
 import itertools
 import multiprocessing
-from typing import Awaitable, Callable
 
 import trio
 
-from .engine import EngineAPI, AsyncioEngine, TrioEngine
+from .engine import AsyncioEngine, Driver, TrioEngine
 
 
 class RunnerAPI(ABC):
     @abstractmethod
-    def __call__(self, *drivers: Callable[[EngineAPI], Awaitable[None]]) -> None:
+    def __call__(self, *drivers: Driver) -> None:
         ...
 
 
 class AsyncioRunner(RunnerAPI):
-    def __init__(self):
+    def __init__(self) -> None:
         self._engine = AsyncioEngine()
 
-    def __call__(self, *drivers: Callable[[EngineAPI], Awaitable[None]]) -> None:
+    def __call__(self, *drivers: Driver) -> None:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self._engine.run_drivers(*drivers))
 
 
 class TrioRunner(RunnerAPI):
-    def __init__(self):
+    def __init__(self) -> None:
         self._engine = TrioEngine()
 
-    def __call__(self, *drivers: Callable[[EngineAPI], Awaitable[None]]) -> None:
+    def __call__(self, *drivers: Driver) -> None:
         trio.run(self._engine.run_drivers, *drivers)
 
 
 class BaseIsolatedProcessRunner(RunnerAPI):
-    def __call__(self, *drivers: Callable[[EngineAPI], Awaitable[None]]) -> None:
-        drivers_and_runners = tuple(
-            (driver, self.get_runner())
-            for driver in drivers
-        )
+    def __call__(self, *drivers: Driver) -> None:
+        drivers_and_runners = tuple((driver, self.get_runner()) for driver in drivers)
         procs = tuple(
-            multiprocessing.Process(
-                target=runner,
-                args=(driver,)
-            )
+            multiprocessing.Process(target=runner, args=(driver,))
             for driver, runner in drivers_and_runners
         )
         for proc in procs:

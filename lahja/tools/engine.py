@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 import asyncio
-from typing import Any, Awaitable, Callable, Type
+from typing import Any, Awaitable, Callable, Type, cast
 
 import trio
 
 from lahja import AsyncioEndpoint, EndpointAPI, TrioEndpoint
 from lahja.base import EventAPI
+
+Driver = Callable[["EngineAPI"], Awaitable[None]]
 
 
 class EngineAPI(ABC):
@@ -13,25 +15,37 @@ class EngineAPI(ABC):
     Event: Type[EventAPI]
 
     @abstractmethod
-    def run_drivers(self, *drivers: Callable[["EngineAPI"], Awaitable[None]]) -> None:
+    def run_drivers(self, *drivers: Driver) -> Awaitable[None]:
+        """
+        Performs the actual *running* of the drivers executing them with in a
+        manner appropriate for the individual endpoint implementation.
+        """
         ...
 
+    @abstractmethod
     async def run_with_timeout(
-        self, coro: Callable[..., Awaitable[Any]], *args: Any
+        self, coro: Callable[..., Awaitable[Any]], *args: Any, timeout: int
     ) -> None:
+        """
+        Runs a coroutine with the specifid positional ``args`` with a timeout.
+        **must** raise the built-in ``TimeoutError`` when a timeout occurs.
+        """
         ...
 
-    async def sleep(self, seconds: int) -> None:
+    @abstractmethod
+    async def sleep(self, seconds: float) -> None:
+        """
+        Sleep for the provide number of seconds in a manner appropriate for the
+        individual endpoint implementation.
+        """
         ...
 
 
 class AsyncioEngine(EngineAPI):
     endpoint_class = AsyncioEndpoint
-    Event = asyncio.Event
+    Event = cast(Type[EventAPI], asyncio.Event)
 
-    async def run_drivers(
-        self, *drivers: Callable[[EngineAPI], Awaitable[None]]
-    ) -> None:
+    async def run_drivers(self, *drivers: Driver) -> None:
         await asyncio.gather(*(driver(self) for driver in drivers))
 
     async def run_with_timeout(
@@ -42,17 +56,15 @@ class AsyncioEngine(EngineAPI):
         except asyncio.TimeoutError as err:
             raise TimeoutError from err
 
-    async def sleep(self, seconds: int) -> None:
+    async def sleep(self, seconds: float) -> None:
         await asyncio.sleep(seconds)
 
 
 class TrioEngine(EngineAPI):
     endpoint_class = TrioEndpoint
-    Event = asyncio.Event
+    Event = cast(Type[EventAPI], trio.Event)
 
-    async def run_drivers(
-        self, *drivers: Callable[[EngineAPI], Awaitable[None]]
-    ) -> None:
+    async def run_drivers(self, *drivers: Driver) -> None:
         async with trio.open_nursery() as nursery:
             for driver in drivers:
                 nursery.start_soon(driver, self)
@@ -66,5 +78,5 @@ class TrioEngine(EngineAPI):
         except trio.TooSlowError as err:
             raise TimeoutError from err
 
-    async def sleep(self, seconds: int) -> None:
+    async def sleep(self, seconds: float) -> None:
         await trio.sleep(seconds)

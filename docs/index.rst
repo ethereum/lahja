@@ -18,4 +18,5 @@ Table of contents
    :caption: Community
 
    contributing
+   testing
    code_of_conduct
