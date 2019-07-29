@@ -8,7 +8,13 @@ from lahja.tools.runner import (
 )
 
 
-@pytest.fixture(params=('trio-runner', 'asyncio-runner', 'trio-isolated', 'asyncio-isolated', 'mixed-isolated'))
+@pytest.fixture(params=(
+    'trio-runner',
+    'asyncio-runner',
+    'trio-isolated',
+    'asyncio-isolated',
+    'mixed-isolated',
+))
 def runner(request):
     if request.param == 'trio-runner':
         return TrioRunner()
