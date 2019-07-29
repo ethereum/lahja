@@ -25,6 +25,15 @@ AsyncioEndpoint
     :show-inheritance:
 
 
+TrioEndpoint
+---------------
+
+.. autoclass:: lahja.trio.endpoint.TrioEndpoint
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 ConnectionConfig
 ----------------
 
