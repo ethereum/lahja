@@ -39,7 +39,7 @@ for information on how we do:
 You can set up your dev environment with:
 
 ```sh
-git clone https://github.com/cburgdorf/lahja
+git clone https://github.com/ethereum/lahja
 cd lahja
 virtualenv -p python3 venv
 . venv/bin/activate
