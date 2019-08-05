@@ -8,3 +8,4 @@ from .common import (  # noqa: F401
     Subscription,
 )
 from .exceptions import ConnectionAttemptRejected, UnexpectedResponse  # noqa: F401
+from .trio import TrioEndpoint  # noqa: F401
