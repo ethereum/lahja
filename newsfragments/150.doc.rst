@@ -1,0 +1,1 @@
+Fix wrong title in docs as well as wrong info in license.

@@ -2,5 +2,5 @@ lahja
 lahja
 lahja
 lahja
-<PROJECT_NAME>
-<SHORT_DESCRIPTION>
+lahja
+Lahja is a generic multi process event bus
