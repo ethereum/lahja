@@ -1,1 +1,2 @@
 Remove visual clutter from API docs
+Group methods and attributes in API docs
