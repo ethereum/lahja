@@ -10,7 +10,7 @@ Table of contents
 
    introduction
    quickstart
-   api
+   api/index
    release_notes
 
 .. toctree::
@@ -18,5 +18,4 @@ Table of contents
    :caption: Community
 
    contributing
-   testing
    code_of_conduct
