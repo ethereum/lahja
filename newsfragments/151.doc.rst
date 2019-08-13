@@ -1,1 +1,0 @@
-Rearrange the table of contents and move "Testing" under the API section.

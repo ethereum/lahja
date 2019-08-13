@@ -53,7 +53,7 @@ with open('./README.md') as readme:
 setup(
     name='lahja',
     # *IMPORTANT*: Don't manually change the version here. Use `make bump`, as described in readme
-    version='0.14.0',
+    version='0.14.1',
     description="Generic event bus for asynchronous cross-process communication",
     long_description=long_description,
     long_description_content_type='text/markdown',

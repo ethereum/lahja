@@ -1,1 +1,0 @@
-Remove ``connect_to_endpoint`` and ``connect_to_endpoints_nowait`` APIs.

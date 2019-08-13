@@ -1,2 +1,0 @@
-Fixed some syntax issues in the API docs that prevented them from building.
-Ensured the CI docs build catches these issues in the future.

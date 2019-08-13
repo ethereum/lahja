@@ -3,6 +3,45 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.14.1 (2019-08-13)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Add a ``TrioEndpoint`` as a trio based alternative to the ``AsyncioEndpoint``.  It can seamlessly operate with other endpoints both trio or asyncio based. (`#126 <https://github.com/ethereum/lahja/issues/126>`__)
+- Convert run mechanism for ``RemoteEndpoint`` to be async context manager based. (`#131 <https://github.com/ethereum/lahja/issues/131>`__)
+
+
+Bugfixes
+~~~~~~~~
+
+- Use the proper ``ConnectionAttemptRejected`` class in a code path that used
+  a generic ``Exception`` before. (`#128 <https://github.com/ethereum/lahja/issues/128>`__)
+- If for some reason the IPC file is missing during server shutdown,
+  suppress the `FileNotFoundError` that is raised when we try to remove it. (`#144 <https://github.com/ethereum/lahja/issues/144>`__)
+- Ensure cancellation of asyncio tasks is properly handled. (`#145 <https://github.com/ethereum/lahja/issues/145>`__)
+- Fixed some syntax issues in the API docs that prevented them from building.
+  Ensured the CI docs build catches these issues in the future. (`#147 <https://github.com/ethereum/lahja/issues/147>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Setup towncrier to generate release notes from fragment files to ensure a higher standard
+  for release notes. (`#147 <https://github.com/ethereum/lahja/issues/147>`__)
+- Fix wrong title in docs as well as wrong info in license. (`#150 <https://github.com/ethereum/lahja/issues/150>`__)
+- Rearrange the table of contents and move "Testing" under the API section. (`#151 <https://github.com/ethereum/lahja/issues/151>`__)
+- Remove visual clutter from API docs
+  Group methods and attributes in API docs (`#152 <https://github.com/ethereum/lahja/issues/152>`__)
+
+
+Deprecations and Removals
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Remove ``connect_to_endpoint`` and ``connect_to_endpoints_nowait`` APIs. (`#137 <https://github.com/ethereum/lahja/issues/137>`__)
+
+
 v0.14.0
 -------
 

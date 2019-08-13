@@ -1,1 +1,0 @@
-Add a ``TrioEndpoint`` as a trio based alternative to the ``AsyncioEndpoint``.  It can seamlessly operate with other endpoints both trio or asyncio based.
