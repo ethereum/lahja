@@ -1,0 +1,3 @@
+Raise ``ENDPOINT_CONNECT_TIMEOUT`` to ``30`` seconds to be more conservative about
+app specific expectations on the maximum time it could take for endpoints to become
+available upon connection attempts.
