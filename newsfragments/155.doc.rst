@@ -1,0 +1,1 @@
+Fix broken RTD build by re-adding some info that is important for the latex job.
