@@ -3,6 +3,15 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.14.3 (2019-08-28)
+-------------------------
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Fix broken RTD build by re-adding some info that is important for the latex job. (`#155 <https://github.com/ethereum/lahja/issues/155>`__)
+
+
 Lahja 0.14.2 (2019-08-28)
 -------------------------
 
