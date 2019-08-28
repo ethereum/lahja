@@ -3,6 +3,17 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.14.2 (2019-08-28)
+-------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Raise ``ENDPOINT_CONNECT_TIMEOUT`` to ``30`` seconds to be more conservative about
+  app specific expectations on the maximum time it could take for endpoints to become
+  available upon connection attempts. (`#154 <https://github.com/ethereum/lahja/issues/154>`__)
+
+
 Lahja 0.14.1 (2019-08-13)
 -------------------------
 
