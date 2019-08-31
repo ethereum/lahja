@@ -749,8 +749,6 @@ class AsyncioEndpoint(BaseEndpoint):
                     yield await queue.get()
                 except GeneratorExit:
                     break
-                except asyncio.CancelledError:
-                    break
         finally:
             self._queues[event_type].remove(casted_queue)
             if not self._queues[event_type]:
