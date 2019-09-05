@@ -3,6 +3,12 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.14.4 (2019-09-05)
+-------------------------
+
+No significant changes.
+
+
 Lahja 0.14.3 (2019-08-28)
 -------------------------
 
