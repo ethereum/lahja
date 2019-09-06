@@ -87,16 +87,6 @@ def wait_for(
 GetResponseFn = Callable[[EndpointAPI, BaseRequestResponseEvent[BaseEvent]], BaseEvent]
 
 
-async def _serve_response(
-    endpoint: EndpointAPI,
-    request: BaseRequestResponseEvent[BaseEvent],
-    get_response: GetResponseFn,
-) -> None:
-    response = get_response(endpoint, request)
-    await endpoint.broadcast(response, config=request.broadcast_config())
-    logger.debug("[%s] sent response: %s", endpoint, response)
-
-
 def serve_request(
     request_type: Type[BaseRequestResponseEvent[BaseEvent]], get_response: GetResponseFn
 ) -> AsyncAction:
@@ -104,9 +94,15 @@ def serve_request(
     Wait for an event of the provided ``request_type`` and respond using the
     response event returned by the provide ``get_response`` function.
     """
-    return wait_for(
-        request_type, functools.partial(_serve_response, get_response=get_response)
-    )
+
+    async def _serve_response(
+        endpoint: EndpointAPI, request: BaseRequestResponseEvent[BaseEvent]
+    ) -> None:
+        response = get_response(endpoint, request)
+        await endpoint.broadcast(response, config=request.broadcast_config())
+        logger.debug("[%s] sent response: %s", endpoint, response)
+
+    return AsyncAction(_wait_for, event_type=request_type, on_event=_serve_response)
 
 
 #

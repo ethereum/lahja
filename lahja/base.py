@@ -53,12 +53,16 @@ class ConnectionAPI(ABC):
         ...
 
     @abstractmethod
+    async def close(self) -> None:
+        ...
+
+    @abstractmethod
     async def send_message(self, message: Msg) -> None:
-        pass
+        ...
 
     @abstractmethod
     async def read_message(self) -> Message:
-        pass
+        ...
 
 
 class RemoteEndpointAPI(ABC):
@@ -456,7 +460,7 @@ class EndpointAPI(ABC):
             implementation should be expected to cause problems.
 
         """
-        pass
+        ...
 
     @abstractmethod
     async def request(
