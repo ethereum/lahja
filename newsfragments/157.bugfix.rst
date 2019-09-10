@@ -1,0 +1,1 @@
+Fix that ensures ``asyncio`` streams are closed when an endpoint shuts down to prevent ``ResourceWarning`` warnings.

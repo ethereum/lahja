@@ -38,7 +38,7 @@ async def drive(
     engine: EngineAPI,
     initializer: Initializer,
     actions: Sequence[Action],
-    action_timeout: int = 1,
+    action_timeout: int = 5,
 ) -> None:
     """
     Use the provide *Engine* to initialize and drive an endpoint

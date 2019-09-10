@@ -77,7 +77,7 @@ class TrioConnection(ConnectionAPI):
     def __repr__(self) -> str:
         return f"<{self}>"
 
-    async def aclose(self) -> None:
+    async def close(self) -> None:
         await self._socket.aclose()
 
     #
@@ -181,6 +181,7 @@ class TrioRemoteEndpoint(BaseRemoteEndpoint):
         if self.is_stopped:
             return
         self._stopped.set()
+        await self.conn.close()
 
 
 async def _wait_for_path(path: trio.Path) -> None:

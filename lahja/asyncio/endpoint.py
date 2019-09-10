@@ -88,6 +88,11 @@ class AsyncioConnection(ConnectionAPI):
         reader, writer = await asyncio.open_unix_connection(str(path))
         return cls(reader, writer)
 
+    async def close(self) -> None:
+        if not self.reader.at_eof():
+            self.reader.feed_eof()
+        self.writer.close()
+
     async def send_message(self, message: Msg) -> None:
         pickled = pickle.dumps(message)
         size = len(pickled)
@@ -106,7 +111,7 @@ class AsyncioConnection(ConnectionAPI):
             # We don't do a pre-check for a closed writer since this is a performance critical
             # path. We also don't want to swallow runtime errors unrelated to closed handlers.
             if "handler is closed" in str(err):
-                self.logger.warning("Failed to send %s. Handler closed.", message)
+                self.logger.debug("Failed to send %s. Handler closed.", message)
                 raise RemoteDisconnected from err
             raise
 
@@ -175,6 +180,8 @@ class AsyncioRemoteEndpoint(BaseRemoteEndpoint):
             await self._task
         except asyncio.CancelledError:
             pass
+        finally:
+            await self.conn.close()
 
 
 TFunc = TypeVar("TFunc", bound=Callable[..., Any])
