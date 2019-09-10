@@ -3,6 +3,21 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.14.5 (2019-09-10)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Ensure ``stream()`` does not suppress ``CancelledError`` (`#156 <https://github.com/ethereum/lahja/issues/156>`__)
+
+
+Bugfixes
+~~~~~~~~
+
+- Fix that ensures ``asyncio`` streams are closed when an endpoint shuts down to prevent ``ResourceWarning`` warnings. (`#157 <https://github.com/ethereum/lahja/issues/157>`__)
+
+
 Lahja 0.14.4 (2019-09-05)
 -------------------------
 

@@ -1,1 +1,0 @@
-Ensure ``stream()`` does not suppress ``CancelledError``
