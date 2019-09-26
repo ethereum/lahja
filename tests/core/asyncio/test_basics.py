@@ -258,4 +258,4 @@ def test_pickle_fails():
     alice = AsyncioEndpoint("pickle-test")
 
     with pytest.raises(Exception):
-        pickle.dumps(alice)
+        pickle.dumps(alice, protocol=pickle.HIGHEST_PROTOCOL)

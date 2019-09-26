@@ -90,7 +90,7 @@ class TrioConnection(ConnectionAPI):
         return cls(socket)
 
     async def send_message(self, message: Msg) -> None:
-        msg_data = pickle.dumps(message)
+        msg_data = pickle.dumps(message, protocol=pickle.HIGHEST_PROTOCOL)
         size = len(msg_data)
         try:
             async with self._write_lock:

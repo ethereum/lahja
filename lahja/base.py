@@ -780,7 +780,10 @@ class BaseEndpoint(EndpointAPI):
         if self.has_snappy_support:
             import snappy
 
-            return cast(bytes, snappy.compress(pickle.dumps(event)))
+            return cast(
+                bytes,
+                snappy.compress(pickle.dumps(event, protocol=pickle.HIGHEST_PROTOCOL)),
+            )
         else:
             return event
 
