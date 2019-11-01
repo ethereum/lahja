@@ -55,7 +55,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = '<PROJECT_NAME>'
+project = 'lahja'
 copyright = '2019, The Ethereum Foundation'
 
 __version__ = setup_version
@@ -214,7 +214,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', '<MODULE_NAME>.tex', '<PROJECT_NAME> Documentation',
+  ('index', 'lahja.tex', 'lahja Documentation',
    'The Ethereum Foundation', 'manual'),
 ]
 
@@ -244,7 +244,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', '<MODULE_NAME>', '<PROJECT_NAME> Documentation',
+    ('index', 'lahja', 'lahja Documentation',
      ['The Ethereum Foundation'], 1)
 ]
 
@@ -258,8 +258,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', '<PROJECT_NAME>', '<PROJECT_NAME> Documentation',
-   'The Ethereum Foundation', '<PROJECT_NAME>', '<SHORT_DESCRIPTION>',
+  ('index', 'lahja', 'lahja Documentation',
+   'The Ethereum Foundation', 'lahja', 'Lahja is a generic multi process event bus',
    'Miscellaneous'),
 ]
 
