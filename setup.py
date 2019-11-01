@@ -8,13 +8,13 @@ from setuptools import (
 extras_require = {
     'test': [
         "cytoolz>=0.9.0,<1.0.0",
-        "pytest==4.0.2",
+        "pytest>=5.1.3,<6",
         "pytest-timeout==1.3.3",
         "pytest-xdist==1.25.0",
         "tox>=2.9.1,<3",
     ],
     'test-asyncio': [
-        "pytest-asyncio==0.9.0",
+        "pytest-asyncio>=0.10.0,<0.11",
     ],
     'test-trio': [
         "pytest-trio==0.5.2",
