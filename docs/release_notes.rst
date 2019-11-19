@@ -3,6 +3,24 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.14.6 (2019-11-19)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Ensure ``stream()`` does not suppress ``CancelledError`` (`#156 <https://github.com/ethereum/lahja/issues/156>`__)
+- Use the highest available `pickle` protocol. This yields a notable performance
+  improvement on Python < 3.8 which are still using version 3 of the protocol by
+  default. (`#160 <https://github.com/ethereum/lahja/issues/160>`__)
+
+
+Misc
+~~~~
+
+- `#163 <https://github.com/ethereum/lahja/issues/163>`__
+
+
 Lahja 0.14.5 (2019-09-10)
 -------------------------
 
