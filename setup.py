@@ -23,7 +23,7 @@ extras_require = {
         "black==19.3b",
         "flake8==3.7.7",
         "isort==4.3.18",
-        "mypy==0.701",
+        "mypy==0.740",
         "pydocstyle>=3.0.0,<4",
     ],
     'doc': [

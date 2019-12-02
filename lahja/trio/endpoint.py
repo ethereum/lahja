@@ -222,8 +222,6 @@ class TrioEndpoint(BaseEndpoint):
 
     logger = logging.getLogger("lahja.trio.TrioEndpoint")
 
-    _ipc_path: trio.Path
-
     _subscriptions_changed: trio.Event
 
     def __init__(self, name: str):
@@ -564,14 +562,14 @@ class TrioEndpoint(BaseEndpoint):
         endpoint = cls(config.name)
         async with endpoint.run():
             async with trio.open_nursery() as nursery:
-                await endpoint._start_serving(nursery, trio.Path(config.path))
+                await endpoint._start_serving(nursery, config.path)
                 try:
                     yield endpoint
                 finally:
                     await endpoint._stop_serving()
 
     async def _start_serving(
-        self, nursery: trio_typing.Nursery, ipc_path: trio.Path
+        self, nursery: trio_typing.Nursery, ipc_path: pathlib.Path
     ) -> None:
         if not self.is_running:
             raise LifecycleError("Cannot start server if endpoint is not running")
@@ -583,11 +581,11 @@ class TrioEndpoint(BaseEndpoint):
             raise LifecycleError("Endpoint server already ran and was stopped")
 
         self.ipc_path = ipc_path
-        nursery.start_soon(self._run_server, ipc_path)
+        nursery.start_soon(self._run_server)
 
         # Wait until the ipc socket has appeared and is accepting connections.
         with trio.fail_after(constants.IPC_WAIT_SECONDS):
-            await _wait_for_path(ipc_path)
+            await _wait_for_path(trio.Path(ipc_path))
 
     async def _stop_serving(self) -> None:
         if self.is_server_stopped:
@@ -599,12 +597,12 @@ class TrioEndpoint(BaseEndpoint):
         del self._server_nursery
 
         try:
-            await self.ipc_path.unlink()
+            self.ipc_path.unlink()
         except OSError:
             pass
         self.logger.debug(f"%s: server stopped", self)
 
-    async def _run_server(self, ipc_path: trio.Path) -> None:
+    async def _run_server(self) -> None:
         async with trio.open_nursery() as nursery:
             # Store nursery on self so that we can access it for cancellation
             self._server_nursery = nursery
@@ -684,7 +682,10 @@ class TrioEndpoint(BaseEndpoint):
     def broadcast_nowait(
         self, item: BaseEvent, config: Optional[BroadcastConfig] = None
     ) -> None:
-        self._outbound_send_channel.send_nowait((None, item, config, None))
+        # FIXME: Ignoring type check because of https://github.com/python-trio/trio/issues/1327
+        self._outbound_send_channel.send_nowait(  # type: ignore
+            (None, item, config, None)
+        )
 
     TResponse = TypeVar("TResponse", bound=BaseEvent)
 

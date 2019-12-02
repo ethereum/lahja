@@ -75,6 +75,18 @@ jobs:
       - image: circleci/python:3.6
         environment:
           TOXENV: py36-core-trio
+  py36-core-common:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: py36-core-common
+  py36-core-driver:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: py36-core-driver
   py37-core-asyncio:
     <<: *common
     docker:
@@ -87,6 +99,18 @@ jobs:
       - image: circleci/python:3.7
         environment:
           TOXENV: py37-core-trio
+  py37-core-common:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7
+        environment:
+          TOXENV: py37-core-common
+  py37-core-driver:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7
+        environment:
+          TOXENV: py37-core-driver
   py36-examples:
     <<: *common
     docker:
@@ -111,6 +135,18 @@ jobs:
       - image: circleci/python:3.6
         environment:
           TOXENV: py36-snappy-core-trio
+  py36-snappy-core-common:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: py36-snappy-core-common
+  py36-snappy-core-driver:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TOXENV: py36-snappy-core-driver
   py37-snappy-core-asyncio:
     <<: *common
     docker:
@@ -123,6 +159,18 @@ jobs:
       - image: circleci/python:3.7
         environment:
           TOXENV: py37-snappy-core-trio
+  py37-snappy-core-common:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7
+        environment:
+          TOXENV: py37-snappy-core-common
+  py37-snappy-core-driver:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7
+        environment:
+          TOXENV: py37-snappy-core-driver
 workflows:
   version: 2
   test:
@@ -133,11 +181,19 @@ workflows:
       - lint
       - py36-core-asyncio
       - py36-core-trio
+      - py36-core-driver
+      - py36-core-common
       - py36-examples
       - py37-examples
       - py37-core-asyncio
       - py37-core-trio
+      - py37-core-driver
+      - py37-core-common
       - py36-snappy-core-asyncio
       - py36-snappy-core-trio
+      - py36-snappy-core-driver
+      - py36-snappy-core-common
       - py37-snappy-core-asyncio
       - py37-snappy-core-trio
+      - py37-snappy-core-driver
+      - py37-snappy-core-common

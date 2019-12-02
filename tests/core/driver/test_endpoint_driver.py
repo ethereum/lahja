@@ -4,7 +4,7 @@ import uuid
 import pytest
 
 from lahja import BaseEvent, ConnectionConfig
-from lahja.tools.driver import (
+from lahja.tools.drivers import (
     broadcast,
     connect_to_endpoints,
     driver,
@@ -13,6 +13,7 @@ from lahja.tools.driver import (
     wait_for,
     wait_until_any_endpoint_subscribed_to,
 )
+from lahja.tools.engine import AsyncioEngine
 
 
 def generate_unique_name():
@@ -42,7 +43,7 @@ async def test_endpoint_driver(ipc_base_path):
         broadcast(Event()),
     )
 
-    asyncio.ensure_future(server())
-    asyncio.ensure_future(client())
+    asyncio.ensure_future(server(AsyncioEngine()))
+    asyncio.ensure_future(client(AsyncioEngine()))
 
     await asyncio.wait_for(server_done.wait(), timeout=0.1)
