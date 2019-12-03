@@ -3,6 +3,18 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.15.1 (2019-12-03)
+-------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Use a synchronous API to unlink the IPC file when a TrioEndpoint finishes
+
+  It was using trio's async unlink() method, which would do nothing if the current context is
+  already cancelled (e.g. when the user hits Ctrl-C), which is not what we want. (`#165 <https://github.com/ethereum/lahja/issues/165>`__)
+
+
 Lahja 0.15.0 (2019-11-21)
 -------------------------
 

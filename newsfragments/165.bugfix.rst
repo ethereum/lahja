@@ -1,4 +1,0 @@
-Use a synchronous API to unlink the IPC file when a TrioEndpoint finishes
-
-It was using trio's async unlink() method, which would do nothing if the current context is
-already cancelled (e.g. when the user hits Ctrl-C), which is not what we want.
