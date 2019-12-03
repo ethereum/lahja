@@ -215,6 +215,9 @@ class TrioEndpoint(BaseEndpoint):
     _stream_channels: DefaultDict[Type[BaseEvent], Set[trio.abc.SendChannel[BaseEvent]]]
     _pending_requests: Dict[RequestID, Future[BaseEvent]]
 
+    # Number of unaccepted connections that we allow before refusing new ones.
+    _connection_backlog = 10
+
     _sync_handlers: DefaultDict[Type[BaseEvent], List[Callable[[TSubscribeEvent], Any]]]
     _async_handlers: DefaultDict[
         Type[BaseEvent], List[Callable[[TSubscribeEvent], Awaitable[Any]]]
@@ -253,7 +256,7 @@ class TrioEndpoint(BaseEndpoint):
         # internal signal that local subscriptions have changed.
         self._subscriptions_changed = trio.Event()
 
-        self._server_running = trio.Event()
+        self._socket_bound = trio.Event()
         self._server_stopped = trio.Event()
 
     #
@@ -550,7 +553,10 @@ class TrioEndpoint(BaseEndpoint):
     #
     @property
     def is_serving(self) -> bool:
-        return not self.is_server_stopped and self._server_running.is_set()
+        # NOTE: This does not guarantee that we are actually serving requests since _run_server()
+        # does not have a way of notifying us when trio.serve_listeners() has actually been
+        # scheduled.
+        return not self.is_server_stopped and self._socket_bound.is_set()
 
     @property
     def is_server_stopped(self) -> bool:
@@ -587,6 +593,8 @@ class TrioEndpoint(BaseEndpoint):
         with trio.fail_after(constants.IPC_WAIT_SECONDS):
             await _wait_for_path(trio.Path(ipc_path))
 
+        await self._socket_bound.wait()
+
     async def _stop_serving(self) -> None:
         if self.is_server_stopped:
             return
@@ -598,7 +606,7 @@ class TrioEndpoint(BaseEndpoint):
 
         try:
             self.ipc_path.unlink()
-        except OSError:
+        except FileNotFoundError:
             pass
         self.logger.debug(f"%s: server stopped", self)
 
@@ -610,10 +618,15 @@ class TrioEndpoint(BaseEndpoint):
             self.logger.debug("%s: server starting", self)
             socket = trio.socket.socket(trio.socket.AF_UNIX, trio.socket.SOCK_STREAM)
             await socket.bind(self.ipc_path.__fspath__())
-            socket.listen(1)
+            socket.listen(self._connection_backlog)
             listener = trio.SocketListener(socket)
 
-            self._server_running.set()
+            async def set_socket_bound() -> None:
+                self._socket_bound.set()
+
+            # Use start_soon here so that we give serve_listeners() below a chance to run before
+            # other endpoints start connecting to us.
+            nursery.start_soon(set_socket_bound)
 
             try:
                 await trio.serve_listeners(
@@ -622,7 +635,7 @@ class TrioEndpoint(BaseEndpoint):
                     handler_nursery=nursery,
                 )
             finally:
-                self.logger.debug("%s: server stopping", self)
+                self.logger.debug("%s: server finished", self)
 
     async def _accept_conn(self, socket: trio.SocketStream) -> None:
         self.logger.debug("%s: starting client handler for %s", self, socket)
