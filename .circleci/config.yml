@@ -182,7 +182,6 @@ workflows:
       - py36-core-asyncio
       - py36-core-trio
       - py36-core-driver
-      - py36-core-common
       - py36-examples
       - py37-examples
       - py37-core-asyncio
