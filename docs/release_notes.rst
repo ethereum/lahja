@@ -3,6 +3,20 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.15.2 (2019-12-04)
+-------------------------
+
+Bugfixes
+~~~~~~~~
+
+- A couple fixes to TrioEndpoint
+
+   - allow more than one pending incoming connection, and use a class
+     attribute to configure that instead of hard-coding
+   - wait for the socket to be bound in _start_serving() so that others
+     don't try to connect too soon (`#170 <https://github.com/ethereum/lahja/issues/170>`__)
+
+
 Lahja 0.15.1 (2019-12-03)
 -------------------------
 

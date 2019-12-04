@@ -1,6 +1,0 @@
-A couple fixes to TrioEndpoint
-
- - allow more than one pending incoming connection, and use a class
-   attribute to configure that instead of hard-coding
- - wait for the socket to be bound in _start_serving() so that others
-   don't try to connect too soon
