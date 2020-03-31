@@ -36,11 +36,13 @@ class BroadcastConfig:
         filter_endpoint: Optional[str] = None,
         filter_event_id: Optional[RequestID] = None,
         internal: bool = False,
+        require_subscriber: bool = True,
     ) -> None:
 
         self.filter_endpoint = filter_endpoint
         self.filter_event_id = filter_event_id
         self.internal = internal
+        self.require_subscriber = require_subscriber
 
         if self.internal and self.filter_endpoint is not None:
             raise ValueError("`internal` can not be used with `filter_endpoint")

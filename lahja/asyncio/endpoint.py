@@ -567,6 +567,7 @@ class AsyncioEndpoint(BaseEndpoint):
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
+        self.maybe_raise_no_subscribers_exception(config, type(item))
         await self._broadcast(item, config, None)
 
     async def _broadcast(
@@ -626,6 +627,7 @@ class AsyncioEndpoint(BaseEndpoint):
         accepting new messages this function will continue to accept them, which in the
         worst case could lead to runaway memory usage.
         """
+        self.maybe_raise_no_subscribers_exception(config, type(item))
         asyncio.ensure_future(self._broadcast(item, config, None))
 
     @check_event_loop
@@ -643,6 +645,7 @@ class AsyncioEndpoint(BaseEndpoint):
         should be broadcasted to. By default, requests are broadcasted across
         all connected endpoints with their consuming call sites.
         """
+        self.maybe_raise_no_subscribers_exception(config, type(item))
         request_id = next(self._get_request_id)
 
         future: "asyncio.Future[TResponse]" = asyncio.Future()

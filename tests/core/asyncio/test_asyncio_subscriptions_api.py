@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from lahja import AsyncioEndpoint, BaseEvent, ConnectionConfig
+from lahja import AsyncioEndpoint, BaseEvent, BroadcastConfig, ConnectionConfig
 
 
 class StreamEvent(BaseEvent):
@@ -110,8 +110,12 @@ async def test_asyncio_subscription_api_does_not_match_inherited_classes(endpoin
     assert StreamEvent in subscriber.get_subscribed_events()
 
     # Broadcast two of the inherited events and then the correct event.
-    await other.broadcast(InheretedStreamEvent())
-    await other.broadcast(InheretedStreamEvent())
+    await other.broadcast(
+        InheretedStreamEvent(), BroadcastConfig(require_subscriber=False)
+    )
+    await other.broadcast(
+        InheretedStreamEvent(), BroadcastConfig(require_subscriber=False)
+    )
     await other.broadcast(StreamEvent())
 
     # wait for a received event, finishing the stream and

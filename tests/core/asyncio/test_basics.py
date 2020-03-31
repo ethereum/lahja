@@ -8,6 +8,7 @@ from lahja import (
     AsyncioEndpoint,
     BaseEvent,
     BaseRequestResponseEvent,
+    BroadcastConfig,
     UnexpectedResponse,
 )
 
@@ -32,7 +33,9 @@ async def test_request_can_get_cancelled(endpoint_pair):
 
     item = Request("test")
     with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(alice.request(item), 0.0001)
+        await asyncio.wait_for(
+            alice.request(item, BroadcastConfig(require_subscriber=False)), 0.0001
+        )
     await asyncio.sleep(0.01)
     # Ensure the registration was cleaned up
     assert item._id not in alice._futures

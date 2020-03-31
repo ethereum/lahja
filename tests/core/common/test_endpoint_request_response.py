@@ -1,6 +1,7 @@
 import multiprocessing
 
 from lahja import BaseEvent, BaseRequestResponseEvent, ConnectionConfig
+from lahja.exceptions import NoSubscribers
 from lahja.tools import drivers as d
 
 
@@ -33,3 +34,15 @@ def test_request_response(runner, ipc_base_path):
 
     runner(server, client)
     assert received.is_set()
+
+
+def test_request_without_subscriber_throws(runner, ipc_base_path):
+    server_config = ConnectionConfig.from_name("server", base_path=ipc_base_path)
+
+    server = d.driver(d.serve_endpoint(server_config))
+
+    client = d.driver(
+        d.run_endpoint("client"), d.throws(d.request(Request()), NoSubscribers)
+    )
+
+    runner(server, client)

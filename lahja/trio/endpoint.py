@@ -688,6 +688,7 @@ class TrioEndpoint(BaseEndpoint):
         where this event should be broadcasted to. By default, events are broadcasted across
         all connected endpoints with their consuming call sites.
         """
+        self.maybe_raise_no_subscribers_exception(config, type(item))
         done = trio.Event()
         await self._outbound_send_channel.send((done, item, config, None))
         await done.wait()
@@ -695,6 +696,7 @@ class TrioEndpoint(BaseEndpoint):
     def broadcast_nowait(
         self, item: BaseEvent, config: Optional[BroadcastConfig] = None
     ) -> None:
+        self.maybe_raise_no_subscribers_exception(config, type(item))
         # FIXME: Ignoring type check because of https://github.com/python-trio/trio/issues/1327
         self._outbound_send_channel.send_nowait(  # type: ignore
             (None, item, config, None)
@@ -716,6 +718,7 @@ class TrioEndpoint(BaseEndpoint):
         should be broadcasted to. By default, requests are broadcasted across
         all connected endpoints with their consuming call sites.
         """
+        self.maybe_raise_no_subscribers_exception(config, type(item))
         request_id = next(self._get_request_id)
 
         # Create an asynchronous generator that we use to pipe the result

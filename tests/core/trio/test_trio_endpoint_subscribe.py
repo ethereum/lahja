@@ -1,7 +1,7 @@
 import pytest
 import trio
 
-from lahja import BaseEvent
+from lahja import BaseEvent, BroadcastConfig
 
 
 class EventTest(BaseEvent):
@@ -27,8 +27,8 @@ async def test_trio_endpoint_subscribe(endpoint_pair):
     await bob.wait_until_endpoint_subscribed_to(alice.name, EventTest)
 
     await bob.broadcast(EventTest())
-    await bob.broadcast(EventUnexpected())
-    await bob.broadcast(EventInherited())
+    await bob.broadcast(EventUnexpected(), BroadcastConfig(require_subscriber=False))
+    await bob.broadcast(EventInherited(), BroadcastConfig(require_subscriber=False))
     await bob.broadcast(EventTest())
 
     # enough cycles to allow the alice to process the event
@@ -49,8 +49,8 @@ async def test_trio_endpoint_unsubscribe(endpoint_pair):
     await bob.wait_until_endpoint_subscribed_to(alice.name, EventTest)
 
     await bob.broadcast(EventTest())
-    await bob.broadcast(EventUnexpected())
-    await bob.broadcast(EventInherited())
+    await bob.broadcast(EventUnexpected(), BroadcastConfig(require_subscriber=False))
+    await bob.broadcast(EventInherited(), BroadcastConfig(require_subscriber=False))
     await bob.broadcast(EventTest())
 
     # enough cycles to allow the alice to process the event
@@ -58,10 +58,10 @@ async def test_trio_endpoint_unsubscribe(endpoint_pair):
 
     subscription.unsubscribe()
 
-    await bob.broadcast(EventTest())
-    await bob.broadcast(EventUnexpected())
-    await bob.broadcast(EventInherited())
-    await bob.broadcast(EventTest())
+    await bob.broadcast(EventTest(), BroadcastConfig(require_subscriber=False))
+    await bob.broadcast(EventUnexpected(), BroadcastConfig(require_subscriber=False))
+    await bob.broadcast(EventInherited(), BroadcastConfig(require_subscriber=False))
+    await bob.broadcast(EventTest(), BroadcastConfig(require_subscriber=False))
 
     # enough cycles to allow the alice to process the event
     await trio.sleep(0.05)

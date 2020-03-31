@@ -12,6 +12,14 @@ class BindError(LahjaError):
     """
 
 
+class ConnectionAttemptRejected(LahjaError):
+    """
+    Raised when an attempt was made to connect to an endpoint that is already connected.
+    """
+
+    pass
+
+
 class LifecycleError(LahjaError):
     """
     Raised when attempting to violate the lifecycle of an endpoint such as
@@ -22,9 +30,12 @@ class LifecycleError(LahjaError):
     pass
 
 
-class ConnectionAttemptRejected(LahjaError):
+class NoSubscribers(LahjaError):
     """
-    Raised when an attempt was made to connect to an endpoint that is already connected.
+    Raised when attempting to send an event or make a request while there are no listeners for the
+    specific type of event or request.
+    This is a safety check, set ``require_subscriber`` of :class:`~lahja.base.BroadcastConfig`
+    to ``False`` to allow propagation without listeners.
     """
 
     pass

@@ -1,0 +1,11 @@
+Raise :class:`~lahja.exceptions.NoSubscribers` exception if an event
+is broadcasted or a request is made while there are no subscribers to
+the specific event or request type. This is a safety check to avoid
+scenarios where events or requests are never answered because developers
+forgot to wire certain events or requests together.
+
+If however, certain events or requests aren't expected to be subscribed to,
+one can explicitly set ``require_subscriber`` on the
+:class:`~lahja.common.BroadcastConfig` to ``False``.
+
+This is a **BREAKING CHANGE**.

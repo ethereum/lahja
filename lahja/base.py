@@ -37,7 +37,7 @@ from .common import (
     SubscriptionsAck,
     SubscriptionsUpdated,
 )
-from .exceptions import ConnectionAttemptRejected, RemoteDisconnected
+from .exceptions import ConnectionAttemptRejected, NoSubscribers, RemoteDisconnected
 from .typing import ConditionAPI, EventAPI, LockAPI, RequestID
 
 TResponse = TypeVar("TResponse", bound=BaseEvent)
@@ -654,6 +654,24 @@ class BaseEndpoint(EndpointAPI):
             (remote.name, remote.get_subscribed_events())
             for remote in self._connections
         )
+
+    def maybe_raise_no_subscribers_exception(
+        self, config: Optional[BroadcastConfig], event_type: Type[BaseEvent]
+    ) -> None:
+        """
+        Check the given ``config`` and ``event_type`` and raise a
+        :class:`~lahja.exceptions.NoSubscriber` if no subscribers exist for the ``event_type``
+        when they at least one subscriber is expected.
+        """
+
+        if config is not None:
+            if config.require_subscriber:
+                return
+            if config.filter_event_id is not None:
+                # This is a response to a request
+                return
+        elif not self.is_any_endpoint_subscribed_to(event_type):
+            raise NoSubscribers(f"No subscribers for: {event_type}")
 
     async def wait_until_connections_change(self) -> None:
         """
