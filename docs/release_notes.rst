@@ -3,6 +3,37 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.16.0 (2020-04-01)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Raise :class:`~lahja.exceptions.NoSubscribers` exception if an event
+  is broadcasted or a request is made while there are no subscribers to
+  the specific event or request type. This is a safety check to avoid
+  scenarios where events or requests are never answered because developers
+  forgot to wire certain events or requests together.
+
+  If however, certain events or requests aren't expected to be subscribed to,
+  one can explicitly set ``require_subscriber`` on the
+  :class:`~lahja.common.BroadcastConfig` to ``False``.
+
+  This is a **BREAKING CHANGE**. (`#176 <https://github.com/ethereum/lahja/issues/176>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Add Matomo Tracking to Docs site.
+
+  Matomo is an Open Source web analytics platform that allows us
+  to get better insights and optimize for our audience without
+  the negative consequences of other compareable platforms.
+
+  Read more: https://matomo.org/why-matomo/ (`#171 <https://github.com/ethereum/lahja/issues/171>`__)
+
+
 Lahja 0.15.2 (2019-12-04)
 -------------------------
 
