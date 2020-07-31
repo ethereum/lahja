@@ -759,6 +759,8 @@ class AsyncioEndpoint(BaseEndpoint):
                     yield await queue.get()
                 except GeneratorExit:
                     break
+                else:
+                    await asyncio.sleep(0)
         finally:
             self._queues[event_type].remove(casted_queue)
             if not self._queues[event_type]:
