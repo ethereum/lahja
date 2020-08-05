@@ -1,5 +1,5 @@
 import asyncio
-from asyncio import StreamReader, StreamWriter
+from asyncio import QueueEmpty, StreamReader, StreamWriter
 from collections import defaultdict
 import functools
 import itertools
@@ -756,10 +756,14 @@ class AsyncioEndpoint(BaseEndpoint):
         try:
             for _ in iterations:
                 try:
-                    if queue.empty():
+                    try:
+                        yield queue.get_nowait()
+                    except QueueEmpty:
                         yield await queue.get()
                     else:
-                        yield queue.get_nowait()
+                        # We sleep here to yield to the event loop in the case
+                        # that we were able to get an item from the queue
+                        # without an actual `await`
                         await asyncio.sleep(0)
                 except GeneratorExit:
                     break
