@@ -1,1 +1,0 @@
-Ensure that the ``asyncio`` implementation releases control of the event loop on each iteration of the async iterator produced by `EndpointAPI.stream`

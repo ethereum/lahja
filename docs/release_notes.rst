@@ -3,6 +3,15 @@ Release Notes
 
 .. towncrier release notes start
 
+Lahja 0.17.0 (2020-09-04)
+-------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Ensure that the ``asyncio`` implementation releases control of the event loop on each iteration of the async iterator produced by `EndpointAPI.stream` (`#179 <https://github.com/ethereum/lahja/issues/179>`__)
+
+
 Lahja 0.16.0 (2020-04-01)
 -------------------------
 
